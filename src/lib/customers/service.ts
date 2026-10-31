@@ -1,5 +1,5 @@
 import type { CustomerRow, CustomerDetailRecord, CustomerBillingAddress, CustomerDirectoryMetrics } from "./types";
-import { parsePlan } from "../plans/config";
+import { parsePlan } from "../plans/config.ts";
 
 // Palette generator for initials avatar
 const COLOR_CLASSES = [
