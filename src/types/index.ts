@@ -14,7 +14,9 @@ export type InvoiceStatus =
 export type PaymentMethod =
   "manual_entry" | "bank_transfer" | "stripe" | "razorpay";
 
-export type BillingFrequency = "monthly" | "yearly";
+export type BillingFrequency = "daily" | "weekly" | "monthly" | "yearly";
+
+export type ProductType = "service" | "goods" | "consumable";
 
 export interface Customer {
   id: string;
@@ -37,8 +39,10 @@ export interface ProductVariant {
 export interface Product {
   id: string;
   name: string;
+  type: ProductType;
   description?: string | null;
   basePrice: number;
+  costPrice: number;
   isActive: boolean;
   variants?: ProductVariant[];
 }
@@ -49,6 +53,13 @@ export interface Plan {
   name: string;
   billingFrequency: BillingFrequency;
   intervalCount: number;
+  minimumQuantity: number;
+  availabilityStart?: string | null;
+  availabilityEnd?: string | null;
+  autoCloseAfterExpiry: boolean;
+  allowEarlyClosure: boolean;
+  allowPausing: boolean;
+  allowRenewal: boolean;
   isActive: boolean;
   product?: Product;
 }

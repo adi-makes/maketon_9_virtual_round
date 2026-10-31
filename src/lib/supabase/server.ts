@@ -1,16 +1,17 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { type SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createStandardClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 
 /**
- * Creates a Supabase client for Server Components, Server Actions, and Route Handlers.
- * Properly handles cookie access and catches Server Component cookie write limitations deliberately.
+ * Creates a Supabase client for Server Components, Server Actions, Route Handlers,
+ * and background jobs. Gracefully falls back when invoked outside a Next.js request context.
  */
 export async function createClient(): Promise<SupabaseClient<Database>> {
-  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseKey = serviceKey || anonKey;
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error(
@@ -18,7 +19,23 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
     );
   }
 
-  const client = createServerClient<Database>(supabaseUrl, supabaseKey, {
+  let cookieStore: Awaited<ReturnType<typeof cookies>> | null = null;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    // Outside of active Next.js request context
+  }
+
+  if (!cookieStore) {
+    return createStandardClient<Database>(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }) as unknown as SupabaseClient<Database>;
+  }
+
+  const client = createServerClient<Database>(supabaseUrl, anonKey || supabaseKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -35,8 +52,7 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
             cookieStore.set(name, value, options)
           );
         } catch {
-          // The `setAll` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing user sessions.
+          // Handled silently in Server Components
         }
       },
     },

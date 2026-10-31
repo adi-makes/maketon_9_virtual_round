@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSubscription } from "@/actions/subscriptions";
 import { formatCurrency } from "@/lib/utils";
-import type { SubscriptionStatus } from "@/types";
+import type { SubscriptionStatus, BillingFrequency } from "@/types";
 
 interface CustomerOption {
   id: string;
@@ -23,8 +23,15 @@ interface VariantOption {
 interface PlanOption {
   id: string;
   name: string;
-  billing_frequency: "monthly" | "yearly";
+  billing_frequency: BillingFrequency;
   interval_count: number;
+  minimum_quantity: number;
+  availability_start?: string | null;
+  availability_end?: string | null;
+  auto_close_after_expiry?: boolean;
+  allow_early_closure?: boolean;
+  allow_pausing?: boolean;
+  allow_renewal?: boolean;
 }
 
 interface ProductOption {
@@ -60,7 +67,12 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
     currentProduct?.variants[0]?.id || ""
   );
-  const [quantity, setQuantity] = useState<number>(1);
+
+  const currentPlan = currentProduct?.plans.find((p) => p.id === selectedPlanId);
+  const currentVariant = currentProduct?.variants.find((v) => v.id === selectedVariantId);
+
+  const minRequiredQty = currentPlan?.minimum_quantity || 1;
+  const [quantity, setQuantity] = useState<number>(minRequiredQty);
   const [startDate, setStartDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -72,12 +84,21 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
   const handleProductChange = (productId: string) => {
     setSelectedProductId(productId);
     const prod = products.find((p) => p.id === productId);
-    setSelectedPlanId(prod?.plans[0]?.id || "");
+    const firstPlan = prod?.plans[0];
+    setSelectedPlanId(firstPlan?.id || "");
     setSelectedVariantId(prod?.variants[0]?.id || "");
+    if (firstPlan?.minimum_quantity && quantity < firstPlan.minimum_quantity) {
+      setQuantity(firstPlan.minimum_quantity);
+    }
   };
 
-  const currentPlan = currentProduct?.plans.find((p) => p.id === selectedPlanId);
-  const currentVariant = currentProduct?.variants.find((v) => v.id === selectedVariantId);
+  const handlePlanChange = (planId: string) => {
+    setSelectedPlanId(planId);
+    const targetPlan = currentProduct?.plans.find((p) => p.id === planId);
+    if (targetPlan?.minimum_quantity && quantity < targetPlan.minimum_quantity) {
+      setQuantity(targetPlan.minimum_quantity);
+    }
+  };
 
   // Calculations
   const basePrice = currentProduct ? Number(currentProduct.base_price) : 0;
@@ -86,22 +107,34 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
   const safeQuantity = Math.max(1, quantity || 1);
   const totalPrice = unitPrice * safeQuantity;
 
-  // Next renewal preview
+  // Next renewal preview supporting daily, weekly, monthly, yearly
   const getEstimatedRenewal = () => {
     if (!startDate) return null;
     const date = new Date(startDate);
     const freq = currentPlan?.billing_frequency || "monthly";
-    const count = currentPlan?.interval_count || 1;
-    if (freq === "yearly") {
+    const count = Math.max(1, currentPlan?.interval_count || 1);
+
+    if (freq === "daily") {
+      date.setDate(date.getDate() + count);
+    } else if (freq === "weekly") {
+      date.setDate(date.getDate() + count * 7);
+    } else if (freq === "yearly") {
       date.setFullYear(date.getFullYear() + count);
     } else {
       date.setMonth(date.getMonth() + count);
     }
+
     return date.toLocaleDateString("en-IN", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
+  };
+
+  // Check if plan has expired
+  const isPlanExpired = () => {
+    if (!currentPlan?.availability_end) return false;
+    return new Date().getTime() > new Date(currentPlan.availability_end).getTime();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,11 +143,23 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
     setSuccessMsg(null);
 
     if (!selectedCustomerId) {
-      setErrorMsg("Please select a customer.");
+      setErrorMsg("Validation error: Please select a customer.");
       return;
     }
     if (!selectedPlanId) {
-      setErrorMsg("Please select a billing plan.");
+      setErrorMsg("Validation error: Please select a billing plan.");
+      return;
+    }
+
+    if (currentPlan && quantity < currentPlan.minimum_quantity) {
+      setErrorMsg(
+        `Validation error: Minimum quantity required for this plan is ${currentPlan.minimum_quantity}.`
+      );
+      return;
+    }
+
+    if (isPlanExpired()) {
+      setErrorMsg("Action rejected: This plan has expired and is no longer available.");
       return;
     }
 
@@ -159,78 +204,50 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
         </div>
       )}
       {successMsg && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           {successMsg}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {/* Customer Selection */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">
-            Customer <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            required
-          >
-            <option value="">Select a customer</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.company_name ? `(${c.company_name})` : ""} — {c.email}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Customer Selection */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-slate-700">
+          Customer Organization <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={selectedCustomerId}
+          onChange={(e) => setSelectedCustomerId(e.target.value)}
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+          required
+        >
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.company_name ? `${c.company_name} (${c.name})` : c.name} — {c.email}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {/* Product Selection */}
+      {/* Product & Variant Selection */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">
-            Product <span className="text-red-500">*</span>
+            Catalog Product <span className="text-red-500">*</span>
           </label>
           <select
             value={selectedProductId}
             onChange={(e) => handleProductChange(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
             required
           >
-            <option value="">Select a product</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} (Base: {formatCurrency(Number(p.base_price))})
+                {p.name} (Base: {formatCurrency(p.base_price)})
               </option>
             ))}
           </select>
         </div>
 
-        {/* Plan Frequency Selection */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">
-            Billing Plan <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={selectedPlanId}
-            onChange={(e) => setSelectedPlanId(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            required
-          >
-            <option value="">Select a plan</option>
-            {currentProduct?.plans.map((pl) => (
-              <option key={pl.id} value={pl.id}>
-                {pl.name} ({pl.billing_frequency === "yearly" ? "Annual" : "Monthly"}, every {pl.interval_count} {pl.billing_frequency === "yearly" ? "yr" : "mo"})
-              </option>
-            ))}
-          </select>
-          {(!currentProduct?.plans || currentProduct.plans.length === 0) && (
-            <p className="text-xs text-amber-600">
-              No plans configured for this product. Please create a plan first under Plans.
-            </p>
-          )}
-        </div>
-
-        {/* Variant / Tier Selection */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">
             Product Variant / Tier
@@ -238,47 +255,93 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
           <select
             value={selectedVariantId}
             onChange={(e) => setSelectedVariantId(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
           >
-            <option value="">No Variant (Base Product only)</option>
             {currentProduct?.variants.map((v) => (
               <option key={v.id} value={v.id}>
-                {v.name} ({Number(v.price_adjustment) >= 0 ? "+" : ""}{formatCurrency(Number(v.price_adjustment))})
+                {v.name} ({Number(v.price_adjustment) >= 0 ? "+" : ""}
+                {formatCurrency(Number(v.price_adjustment))})
               </option>
             ))}
           </select>
         </div>
+      </div>
 
-        {/* Quantity */}
+      {/* Billing Plan & Cycle */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">
-            Quantity (Seats / Units) <span className="text-red-500">*</span>
+            Billing Plan & Cycle <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={selectedPlanId}
+            onChange={(e) => handlePlanChange(e.target.value)}
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+            required
+          >
+            {currentProduct?.plans.map((pl) => (
+              <option key={pl.id} value={pl.id}>
+                {pl.name} — Every {pl.interval_count} {pl.billing_frequency}
+                {pl.minimum_quantity > 1 ? ` (Min Qty: ${pl.minimum_quantity})` : ""}
+              </option>
+            ))}
+          </select>
+
+          {currentPlan && (
+            <div className="text-xs text-slate-500 space-y-0.5 pt-1">
+              {currentPlan.minimum_quantity > 1 && (
+                <div className="text-amber-700 font-medium">
+                  ⚠️ This plan requires a minimum order of {currentPlan.minimum_quantity} units.
+                </div>
+              )}
+              {currentPlan.availability_end && (
+                <div>
+                  Plan availability ends:{" "}
+                  <strong>{new Date(currentPlan.availability_end).toLocaleDateString()}</strong>
+                </div>
+              )}
+              <div>
+                Configured permissions: Pausing:{" "}
+                <strong>{currentPlan.allow_pausing ? "Allowed" : "Prohibited"}</strong>, Early Close:{" "}
+                <strong>{currentPlan.allow_early_closure ? "Allowed" : "Prohibited"}</strong>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-slate-700">
+            Quantity / User Seats <span className="text-red-500">*</span>
           </label>
           <input
             type="number"
-            min="1"
+            min={minRequiredQty}
             value={quantity}
-            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onChange={(e) => setQuantity(parseInt(e.target.value) || minRequiredQty)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
             required
           />
+          <p className="text-xs text-slate-500">
+            Minimum required for this plan: {minRequiredQty}.
+          </p>
         </div>
+      </div>
 
-        {/* Start Date */}
+      {/* Start Date & Initial Status */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">
             Subscription Start Date <span className="text-red-500">*</span>
           </label>
           <input
             type="date"
+            required
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            required
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
           />
         </div>
 
-        {/* Initial Lifecycle Status */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">
             Initial Status
@@ -286,69 +349,55 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
           <select
             value={initialStatus}
             onChange={(e) => setInitialStatus(e.target.value as SubscriptionStatus)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
           >
-            <option value="draft">Draft (Under review)</option>
-            <option value="quotation">Quotation (Issued to customer)</option>
-            <option value="confirmed">Confirmed (Accepted, awaiting activation)</option>
-            <option value="active">Active (Immediate billing schedule)</option>
+            <option value="draft">Draft (Preliminary quote)</option>
+            <option value="quotation">Quotation (Presented to client)</option>
+            <option value="confirmed">Confirmed (Order approved)</option>
+            <option value="active">Active (Immediate billing)</option>
           </select>
-          <p className="text-xs text-slate-500">
-            Standard workflow progresses from Draft &rarr; Quotation &rarr; Confirmed &rarr; Active.
-          </p>
         </div>
       </div>
 
-      {/* Pricing Calculation Summary Box */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">
-          Live Pricing Calculation
+      {/* Live Financial Breakdown Summary */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+          Order Summary & Recurring Forecast
         </h3>
-        <div className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>
-            <span className="text-xs text-slate-500">Base Price:</span>
-            <div className="font-semibold text-slate-900">{formatCurrency(basePrice)}</div>
+            <span className="text-xs text-slate-500">Base Unit Price:</span>
+            <div className="font-semibold text-slate-800">{formatCurrency(basePrice)}</div>
           </div>
           <div>
             <span className="text-xs text-slate-500">Variant Adjustment:</span>
-            <div className="font-semibold text-slate-900">
+            <div className="font-semibold text-slate-800">
               {priceAdjustment >= 0 ? "+" : ""}
               {formatCurrency(priceAdjustment)}
             </div>
           </div>
           <div>
-            <span className="text-xs text-slate-500">Unit Price:</span>
-            <div className="font-semibold text-blue-600">{formatCurrency(unitPrice)}</div>
+            <span className="text-xs text-slate-500">Effective Unit Price:</span>
+            <div className="font-bold text-blue-600">{formatCurrency(unitPrice)}</div>
           </div>
           <div>
-            <span className="text-xs text-slate-500">Quantity:</span>
-            <div className="font-semibold text-slate-900">{safeQuantity}</div>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-slate-200 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <span className="text-xs text-slate-500">Billing Interval:</span>
-            <div className="font-medium text-slate-800">
-              {currentPlan?.billing_frequency === "yearly" ? "Annual" : "Monthly"} (Interval: {currentPlan?.interval_count || 1})
-            </div>
-            {getEstimatedRenewal() && (
-              <span className="text-xs text-slate-500">
-                First renewal estimate: <strong>{getEstimatedRenewal()}</strong>
-              </span>
-            )}
-          </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-500 uppercase tracking-wide">Total Amount</span>
-            <div className="text-2xl font-bold text-slate-900">
+            <span className="text-xs text-slate-500">Total Recurring Fee:</span>
+            <div className="font-extrabold text-slate-900 text-base">
               {formatCurrency(totalPrice)}
             </div>
           </div>
         </div>
+
+        {getEstimatedRenewal() && (
+          <div className="pt-2 border-t border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+            <span>First Period End / Renewal Date:</span>
+            <span className="font-semibold text-slate-800">{getEstimatedRenewal()}</span>
+          </div>
+        )}
       </div>
 
-      {/* Submit Button */}
-      <div className="flex items-center justify-end gap-3">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
         <button
           type="button"
           onClick={() => router.back()}
@@ -358,10 +407,10 @@ export function SubscriptionForm({ customers, products }: SubscriptionFormProps)
         </button>
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || products.length === 0}
           className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow hover:bg-blue-700 disabled:opacity-50"
         >
-          {isSubmitting ? "Creating..." : "Create Subscription"}
+          {isSubmitting ? "Creating Subscription..." : "Create Subscription"}
         </button>
       </div>
     </form>

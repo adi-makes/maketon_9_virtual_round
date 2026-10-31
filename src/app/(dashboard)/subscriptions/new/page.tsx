@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SubscriptionForm } from "@/components/forms/subscription-form";
+import { parsePlan, parseProduct } from "@/lib/plans/config";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,9 @@ export default async function NewSubscriptionPage() {
   // Fetch active customers, products, variants, and plans cleanly
   const [
     { data: customers },
-    { data: products },
+    { data: rawProducts },
     { data: variants },
-    { data: plans },
+    { data: rawPlans },
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -20,7 +21,7 @@ export default async function NewSubscriptionPage() {
       .order("name", { ascending: true }),
     supabase
       .from("products")
-      .select("id, name, description, base_price")
+      .select("*")
       .eq("is_active", true)
       .order("name", { ascending: true }),
     supabase
@@ -28,31 +29,42 @@ export default async function NewSubscriptionPage() {
       .select("id, product_id, name, price_adjustment, sku"),
     supabase
       .from("plans")
-      .select("id, product_id, name, billing_frequency, interval_count")
+      .select("*")
       .eq("is_active", true),
   ]);
 
-  const sanitizedProducts = (products || []).map((p) => {
+  const sanitizedProducts = (rawProducts || []).map((rawP) => {
+    const p = parseProduct(rawP as Parameters<typeof parseProduct>[0]);
     const pVariants = (variants || []).filter((v) => v.product_id === p.id);
-    const pPlans = (plans || []).filter((pl) => pl.product_id === p.id);
+    const pPlans = (rawPlans || []).filter((pl) => pl.product_id === p.id);
 
     return {
       id: p.id,
       name: p.name,
       description: p.description,
-      base_price: Number(p.base_price),
+      base_price: p.basePrice,
       variants: pVariants.map((v) => ({
         id: v.id,
         name: v.name,
         price_adjustment: Number(v.price_adjustment),
         sku: v.sku,
       })),
-      plans: pPlans.map((pl) => ({
-        id: pl.id,
-        name: pl.name,
-        billing_frequency: pl.billing_frequency as "monthly" | "yearly",
-        interval_count: pl.interval_count,
-      })),
+      plans: pPlans.map((rawPl) => {
+        const cfg = parsePlan(rawPl as Parameters<typeof parsePlan>[0]);
+        return {
+          id: rawPl.id,
+          name: cfg.cleanName,
+          billing_frequency: cfg.billingFrequency,
+          interval_count: cfg.intervalCount,
+          minimum_quantity: cfg.minimumQuantity,
+          availability_start: cfg.availabilityStart,
+          availability_end: cfg.availabilityEnd,
+          auto_close_after_expiry: cfg.autoCloseAfterExpiry,
+          allow_early_closure: cfg.allowEarlyClosure,
+          allow_pausing: cfg.allowPausing,
+          allow_renewal: cfg.allowRenewal,
+        };
+      }),
     };
   });
 

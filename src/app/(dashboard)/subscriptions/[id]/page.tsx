@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubscriptionDetailClient } from "./subscription-detail-client";
+import { parsePlan, parseProduct } from "@/lib/plans/config";
 import type { SubscriptionStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -34,15 +35,8 @@ export default async function SubscriptionDetailPage({
         phone
       ),
       plan:plans (
-        id,
-        name,
-        billing_frequency,
-        interval_count,
-        product:products (
-          id,
-          name,
-          base_price
-        )
+        *,
+        product:products (*)
       ),
       items:subscription_items (
         id,
@@ -72,17 +66,40 @@ export default async function SubscriptionDetailPage({
     phone?: string | null;
   } | null;
 
-  const planData = sub.plan as unknown as {
-    id: string;
-    name: string;
-    billing_frequency: "monthly" | "yearly";
-    interval_count: number;
-    product?: {
-      id: string;
-      name: string;
-      base_price: number;
-    };
-  } | null;
+  const rawPlan = (Array.isArray(sub.plan) ? sub.plan[0] : sub.plan) as
+    | (Record<string, unknown> & { id: string })
+    | null;
+  const rawProduct = rawPlan
+    ? Array.isArray(rawPlan.product)
+      ? (rawPlan.product[0] as Record<string, unknown>)
+      : (rawPlan.product as Record<string, unknown> | undefined)
+    : undefined;
+
+  const planConfig = rawPlan ? parsePlan(rawPlan as Parameters<typeof parsePlan>[0]) : null;
+  const productData = rawProduct ? parseProduct(rawProduct as Parameters<typeof parseProduct>[0]) : null;
+
+  const planData = rawPlan && planConfig
+    ? {
+        id: (rawPlan as { id: string }).id,
+        name: planConfig.cleanName,
+        billing_frequency: planConfig.billingFrequency,
+        interval_count: planConfig.intervalCount,
+        minimum_quantity: planConfig.minimumQuantity,
+        availability_start: planConfig.availabilityStart,
+        availability_end: planConfig.availabilityEnd,
+        auto_close_after_expiry: planConfig.autoCloseAfterExpiry,
+        allow_early_closure: planConfig.allowEarlyClosure,
+        allow_pausing: planConfig.allowPausing,
+        allow_renewal: planConfig.allowRenewal,
+        product: productData
+          ? {
+              id: productData.id,
+              name: productData.name,
+              base_price: productData.basePrice,
+            }
+          : undefined,
+      }
+    : null;
 
   const itemsData = (sub.items || []) as unknown as Array<{
     id: string;

@@ -31,3 +31,4 @@ Thumbs.db
 *.njsproj
 .kilo/
 .env.local
+supabase/.temp/

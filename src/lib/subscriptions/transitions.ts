@@ -1,4 +1,4 @@
-import type { SubscriptionStatus } from "@/types";
+import type { SubscriptionStatus, BillingFrequency } from "@/types";
 
 /**
  * Valid state transitions for SubscriptIQ subscription lifecycles.
@@ -14,17 +14,25 @@ export const ALLOWED_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[
 
 /**
  * Calculates next billing date based on start date, billing frequency, and interval count.
+ * Supports daily, weekly, monthly, and yearly cycles.
  */
 export function calculateNextBillingDate(
   startDate: Date,
-  frequency: "monthly" | "yearly",
+  frequency: BillingFrequency,
   intervalCount: number = 1
 ): Date {
   const next = new Date(startDate.getTime());
-  if (frequency === "yearly") {
-    next.setFullYear(next.getFullYear() + Math.max(1, intervalCount));
+  const count = Math.max(1, intervalCount);
+
+  if (frequency === "daily") {
+    next.setDate(next.getDate() + count);
+  } else if (frequency === "weekly") {
+    next.setDate(next.getDate() + count * 7);
+  } else if (frequency === "yearly") {
+    next.setFullYear(next.getFullYear() + count);
   } else {
-    next.setMonth(next.getMonth() + Math.max(1, intervalCount));
+    // Default to monthly
+    next.setMonth(next.getMonth() + count);
   }
   return next;
 }

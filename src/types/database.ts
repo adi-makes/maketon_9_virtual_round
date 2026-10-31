@@ -86,8 +86,10 @@ export interface Database {
         Row: {
           id: string;
           name: string;
+          type: "service" | "goods" | "consumable";
           description: string | null;
           base_price: number;
+          cost_price: number;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -95,8 +97,10 @@ export interface Database {
         Insert: {
           id?: string;
           name: string;
+          type?: "service" | "goods" | "consumable";
           description?: string | null;
           base_price?: number;
+          cost_price?: number;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -104,8 +108,10 @@ export interface Database {
         Update: {
           id?: string;
           name?: string;
+          type?: "service" | "goods" | "consumable";
           description?: string | null;
           base_price?: number;
+          cost_price?: number;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -145,8 +151,15 @@ export interface Database {
           id: string;
           product_id: string;
           name: string;
-          billing_frequency: "monthly" | "yearly";
+          billing_frequency: "daily" | "weekly" | "monthly" | "yearly";
           interval_count: number;
+          minimum_quantity: number;
+          availability_start: string | null;
+          availability_end: string | null;
+          auto_close_after_expiry: boolean;
+          allow_early_closure: boolean;
+          allow_pausing: boolean;
+          allow_renewal: boolean;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -155,8 +168,15 @@ export interface Database {
           id?: string;
           product_id: string;
           name: string;
-          billing_frequency: "monthly" | "yearly";
+          billing_frequency: "daily" | "weekly" | "monthly" | "yearly";
           interval_count?: number;
+          minimum_quantity?: number;
+          availability_start?: string | null;
+          availability_end?: string | null;
+          auto_close_after_expiry?: boolean;
+          allow_early_closure?: boolean;
+          allow_pausing?: boolean;
+          allow_renewal?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -165,8 +185,15 @@ export interface Database {
           id?: string;
           product_id?: string;
           name?: string;
-          billing_frequency?: "monthly" | "yearly";
+          billing_frequency?: "daily" | "weekly" | "monthly" | "yearly";
           interval_count?: number;
+          minimum_quantity?: number;
+          availability_start?: string | null;
+          availability_end?: string | null;
+          auto_close_after_expiry?: boolean;
+          allow_early_closure?: boolean;
+          allow_pausing?: boolean;
+          allow_renewal?: boolean;
           is_active?: boolean;
           updated_at?: string;
         };

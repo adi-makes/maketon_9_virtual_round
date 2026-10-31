@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProduct } from "@/actions/products";
 import { formatCurrency } from "@/lib/utils";
+import type { ProductType } from "@/types";
 
 interface VariantRow {
   name: string;
@@ -15,17 +16,26 @@ interface VariantRow {
 export default function NewProductPage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [type, setType] = useState<ProductType>("service");
   const [description, setDescription] = useState("");
   const [basePrice, setBasePrice] = useState<number>(1000);
+  const [costPrice, setCostPrice] = useState<number>(200);
   const [isActive, setIsActive] = useState(true);
   const [variants, setVariants] = useState<VariantRow[]>([
-    { name: "Standard", price_adjustment: 0, sku: "" },
+    { name: "Standard", price_adjustment: 0, sku: "VAR-STD" },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleAddVariant = () => {
     setVariants([...variants, { name: "", price_adjustment: 0, sku: "" }]);
+  };
+
+  const handleAddOdooVariant = () => {
+    setVariants([
+      ...variants,
+      { name: "Odoo Variant", price_adjustment: 560, sku: "VAR-ODOO-560" },
+    ]);
   };
 
   const handleRemoveVariant = (index: number) => {
@@ -47,11 +57,15 @@ export default function NewProductPage() {
     setErrorMsg(null);
 
     if (!name.trim()) {
-      setErrorMsg("Product name is required.");
+      setErrorMsg("Validation error: Product name is required.");
       return;
     }
-    if (basePrice < 0) {
-      setErrorMsg("Base price must be greater than or equal to 0.");
+    if (basePrice === undefined || basePrice === null || Number(basePrice) < 0) {
+      setErrorMsg("Validation error: Sales price must be greater than or equal to 0.");
+      return;
+    }
+    if (costPrice === undefined || costPrice === null || Number(costPrice) < 0) {
+      setErrorMsg("Validation error: Cost price must be greater than or equal to 0.");
       return;
     }
 
@@ -68,8 +82,10 @@ export default function NewProductPage() {
     try {
       const res = await createProduct({
         name,
+        type,
         description,
         base_price: Number(basePrice),
+        cost_price: Number(costPrice),
         is_active: isActive,
         variants: validVariants.length > 0 ? validVariants : undefined,
       });
@@ -114,18 +130,35 @@ export default function NewProductPage() {
         <div className="space-y-4">
           <h2 className="text-base font-semibold text-slate-900">Product Details</h2>
           
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Product Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Acme Cloud ERP"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Product Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Acme Cloud ERP"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Product Type <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as ProductType)}
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 capitalize"
+              >
+                <option value="service">Service</option>
+                <option value="goods">Goods</option>
+                <option value="consumable">Consumable</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -141,10 +174,10 @@ export default function NewProductPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-slate-700">
-                Base Price (₹) <span className="text-red-500">*</span>
+                Sales Price (₹) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -156,7 +189,25 @@ export default function NewProductPage() {
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <p className="mt-1 text-xs text-slate-500">
-                Default baseline fee before variant adjustments.
+                Standard baseline sales price.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Cost Price (₹) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={costPrice}
+                onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Internal delivery / operational cost.
               </p>
             </div>
 
@@ -182,16 +233,25 @@ export default function NewProductPage() {
                 Pricing Variants & Tiers
               </h2>
               <p className="text-xs text-slate-500">
-                Configure variants like Standard, Professional, or Enterprise tiers with price adjustments.
+                Configure variants like Standard, Professional, or Odoo Variant with price adjustments.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleAddVariant}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              + Add Variant
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAddOdooVariant}
+                className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm hover:bg-amber-100"
+              >
+                + Add Odoo Variant (+₹560)
+              </button>
+              <button
+                type="button"
+                onClick={handleAddVariant}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                + Add Variant
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -208,7 +268,7 @@ export default function NewProductPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Enterprise Tier"
+                      placeholder="e.g. Odoo Variant"
                       value={v.name}
                       onChange={(e) => handleVariantChange(idx, "name", e.target.value)}
                       className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
@@ -237,7 +297,7 @@ export default function NewProductPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="SKU-ENT-1"
+                      placeholder="SKU-ODOO-1"
                       value={v.sku}
                       onChange={(e) => handleVariantChange(idx, "sku", e.target.value)}
                       className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
@@ -288,4 +348,3 @@ export default function NewProductPage() {
     </div>
   );
 }
-

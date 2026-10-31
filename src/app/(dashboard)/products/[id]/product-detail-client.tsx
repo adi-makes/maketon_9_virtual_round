@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   updateProduct,
+  deleteProduct,
   createVariant,
   deleteVariant,
   createPlan,
   updatePlan,
 } from "@/actions/products";
 import { formatCurrency } from "@/lib/utils";
+import type { ProductType, BillingFrequency } from "@/types";
 
 interface Variant {
   id: string;
@@ -21,8 +24,15 @@ interface Variant {
 interface Plan {
   id: string;
   name: string;
-  billing_frequency: "monthly" | "yearly";
+  billing_frequency: BillingFrequency;
   interval_count: number;
+  minimum_quantity: number;
+  availability_start: string | null;
+  availability_end: string | null;
+  auto_close_after_expiry: boolean;
+  allow_early_closure: boolean;
+  allow_pausing: boolean;
+  allow_renewal: boolean;
   is_active: boolean;
 }
 
@@ -30,8 +40,10 @@ interface ProductDetailClientProps {
   product: {
     id: string;
     name: string;
+    type: ProductType;
     description: string | null;
     base_price: number;
+    cost_price: number;
     is_active: boolean;
     product_variants: Variant[];
     plans: Plan[];
@@ -39,12 +51,17 @@ interface ProductDetailClientProps {
 }
 
 export function ProductDetailClient({ product }: ProductDetailClientProps) {
+  const router = useRouter();
+
   // Product Edit State
   const [name, setName] = useState(product.name);
+  const [type, setType] = useState<ProductType>(product.type || "service");
   const [description, setDescription] = useState(product.description || "");
   const [basePrice, setBasePrice] = useState(product.base_price);
+  const [costPrice, setCostPrice] = useState(product.cost_price || 0);
   const [isActive, setIsActive] = useState(product.is_active);
   const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   // New Variant State
   const [varName, setVarName] = useState("");
@@ -54,8 +71,15 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
 
   // New Plan State
   const [planName, setPlanName] = useState("");
-  const [planFreq, setPlanFreq] = useState<"monthly" | "yearly">("monthly");
+  const [planFreq, setPlanFreq] = useState<BillingFrequency>("monthly");
   const [planInterval, setPlanInterval] = useState<number>(1);
+  const [planMinQty, setPlanMinQty] = useState<number>(1);
+  const [planStart, setPlanStart] = useState("");
+  const [planEnd, setPlanEnd] = useState("");
+  const [planAutoClose, setPlanAutoClose] = useState(false);
+  const [planAllowEarlyClose, setPlanAllowEarlyClose] = useState(true);
+  const [planAllowPausing, setPlanAllowPausing] = useState(true);
+  const [planAllowRenewal, setPlanAllowRenewal] = useState(true);
   const [isAddingPlan, setIsAddingPlan] = useState(false);
 
   // Status/Feedback
@@ -66,12 +90,28 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
+
+    if (!name.trim()) {
+      setFeedback({ type: "error", message: "Product name is required." });
+      return;
+    }
+    if (basePrice < 0) {
+      setFeedback({ type: "error", message: "Sales price cannot be negative." });
+      return;
+    }
+    if (costPrice < 0) {
+      setFeedback({ type: "error", message: "Cost price cannot be negative." });
+      return;
+    }
+
     setIsUpdatingProduct(true);
     try {
       const res = await updateProduct(product.id, {
         name,
+        type,
         description,
         base_price: Number(basePrice),
+        cost_price: Number(costPrice),
         is_active: isActive,
       });
       if (!res.success) {
@@ -83,6 +123,29 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
       setFeedback({ type: "error", message: err instanceof Error ? err.message : "Error" });
     } finally {
       setIsUpdatingProduct(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!confirm(`Are you sure you want to delete or deactivate '${product.name}'?`)) return;
+    setIsDeletingProduct(true);
+    setFeedback(null);
+    try {
+      const res = await deleteProduct(product.id);
+      if (!res.success) {
+        setFeedback({ type: "error", message: res.error || "Failed to remove product." });
+      } else {
+        setFeedback({ type: "success", message: res.message || "Product operation completed." });
+        if (res.data?.action === "deleted") {
+          setTimeout(() => router.push("/products"), 1500);
+        } else {
+          setIsActive(false);
+        }
+      }
+    } catch (err: unknown) {
+      setFeedback({ type: "error", message: err instanceof Error ? err.message : "Error" });
+    } finally {
+      setIsDeletingProduct(false);
     }
   };
 
@@ -116,6 +179,12 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
     }
   };
 
+  const handleQuickAddOdoo = () => {
+    setVarName("Odoo Variant");
+    setVarPriceAdj(560);
+    setVarSku("VAR-ODOO-560");
+  };
+
   const handleDeleteVariant = async (variantId: string) => {
     if (!confirm("Are you sure you want to remove this variant?")) return;
     setFeedback(null);
@@ -145,6 +214,13 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
         name: planName,
         billing_frequency: planFreq,
         interval_count: planInterval,
+        minimum_quantity: planMinQty,
+        availability_start: planStart || null,
+        availability_end: planEnd || null,
+        auto_close_after_expiry: planAutoClose,
+        allow_early_closure: planAllowEarlyClose,
+        allow_pausing: planAllowPausing,
+        allow_renewal: planAllowRenewal,
         is_active: true,
       });
       if (!res.success) {
@@ -153,6 +229,9 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
         setFeedback({ type: "success", message: "Plan added successfully!" });
         setPlanName("");
         setPlanInterval(1);
+        setPlanMinQty(1);
+        setPlanStart("");
+        setPlanEnd("");
       }
     } catch (err: unknown) {
       setFeedback({ type: "error", message: err instanceof Error ? err.message : "Error" });
@@ -192,11 +271,19 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDeleteProduct}
+            disabled={isDeletingProduct}
+            className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-100 disabled:opacity-50"
+          >
+            {isDeletingProduct ? "Processing..." : "Delete / Deactivate Product"}
+          </button>
           <Link
             href="/subscriptions/new"
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
           >
-            Create Subscription with this Product
+            Create Subscription
           </Link>
         </div>
       </div>
@@ -222,7 +309,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
             </h2>
             <form onSubmit={handleUpdateProduct} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700">Name</label>
+                <label className="block text-xs font-medium text-slate-700">Product Name</label>
                 <input
                   type="text"
                   required
@@ -230,6 +317,19 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                   onChange={(e) => setName(e.target.value)}
                   className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700">Product Type</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as ProductType)}
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none capitalize"
+                >
+                  <option value="service">Service</option>
+                  <option value="goods">Goods</option>
+                  <option value="consumable">Consumable</option>
+                </select>
               </div>
 
               <div>
@@ -242,19 +342,36 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700">
-                  Base Price (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
-                  value={basePrice}
-                  onChange={(e) => setBasePrice(parseFloat(e.target.value) || 0)}
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700">
+                    Sales Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={basePrice}
+                    onChange={(e) => setBasePrice(parseFloat(e.target.value) || 0)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700">
+                    Cost Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div className="pt-2">
@@ -290,9 +407,16 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                   Product Variants & Tier Adjustments
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Variants adjust the base price for higher user tiers or add-on packages.
+                  Variants adjust the sales price for higher user tiers, packages, or addons.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={handleQuickAddOdoo}
+                className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm hover:bg-amber-100"
+              >
+                Preset: Odoo (+₹560)
+              </button>
             </div>
 
             {/* Existing Variants Table */}
@@ -303,7 +427,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                     <th className="px-4 py-2">Variant Name</th>
                     <th className="px-4 py-2">SKU</th>
                     <th className="px-4 py-2">Price Adjustment</th>
-                    <th className="px-4 py-2">Total Unit Price</th>
+                    <th className="px-4 py-2">Effective Price</th>
                     <th className="px-4 py-2 text-right">Action</th>
                   </tr>
                 </thead>
@@ -311,7 +435,7 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                   {product.product_variants.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 py-3 text-center text-xs text-slate-500">
-                        No variants defined. The product will use base price {formatCurrency(Number(basePrice))}.
+                        No variants defined. The product will use sales price {formatCurrency(Number(basePrice))}.
                       </td>
                     </tr>
                   ) : (
@@ -319,18 +443,19 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
                       const finalPrice = Math.max(0, Number(basePrice) + Number(v.price_adjustment));
                       return (
                         <tr key={v.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-900">{v.name}</td>
-                          <td className="px-4 py-3 text-slate-500">{v.sku || "—"}</td>
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="px-4 py-2 font-medium text-slate-800">{v.name}</td>
+                          <td className="px-4 py-2 font-mono text-xs text-slate-500">
+                            {v.sku || "—"}
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">
                             {Number(v.price_adjustment) >= 0 ? "+" : ""}
                             {formatCurrency(Number(v.price_adjustment))}
                           </td>
-                          <td className="px-4 py-3 font-semibold text-blue-600">
+                          <td className="px-4 py-2 font-semibold text-blue-600">
                             {formatCurrency(finalPrice)}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-2 text-right">
                             <button
-                              type="button"
                               onClick={() => handleDeleteVariant(v.id)}
                               className="text-xs text-red-600 hover:text-red-800"
                             >
@@ -345,168 +470,210 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
               </table>
             </div>
 
-            {/* Add Variant Form */}
-            <form onSubmit={handleAddVariant} className="mt-4 rounded-md bg-slate-50 p-4 border border-slate-200">
-              <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wide mb-3">
-                Add New Variant
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="sm:col-span-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Variant name (e.g. Enterprise Tier)"
-                    value={varName}
-                    onChange={(e) => setVarName(e.target.value)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Price Adj (₹)"
-                    value={varPriceAdj}
-                    onChange={(e) => setVarPriceAdj(parseFloat(e.target.value) || 0)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="SKU"
-                    value={varSku}
-                    onChange={(e) => setVarSku(e.target.value)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
+            {/* Add Variant Inline Form */}
+            <form onSubmit={handleAddVariant} className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-700">New Variant Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Odoo Variant"
+                  value={varName}
+                  onChange={(e) => setVarName(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                />
               </div>
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isAddingVariant}
-                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isAddingVariant ? "Adding..." : "+ Add Variant"}
-                </button>
+              <div className="w-full sm:w-36">
+                <label className="block text-xs font-medium text-slate-700">Adjustment (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={varPriceAdj}
+                  onChange={(e) => setVarPriceAdj(parseFloat(e.target.value) || 0)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                />
               </div>
+              <div className="w-full sm:w-32">
+                <label className="block text-xs font-medium text-slate-700">SKU (optional)</label>
+                <input
+                  type="text"
+                  placeholder="SKU-1"
+                  value={varSku}
+                  onChange={(e) => setVarSku(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isAddingVariant}
+                className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white shadow hover:bg-blue-700 disabled:opacity-50"
+              >
+                + Add
+              </button>
             </form>
           </div>
 
-          {/* Billing Plans Management */}
+          {/* Plans Configuration */}
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">
-                  Subscription Plans
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Define monthly and annual recurrence intervals for this product.
-                </p>
-              </div>
+            <h2 className="text-base font-semibold text-slate-900 mb-1">
+              Recurring Plans & Lifecycle Permissions
+            </h2>
+            <p className="text-xs text-slate-500 mb-4">
+              Configure daily, weekly, monthly, and annual cycles, minimum order quantities, and permission controls.
+            </p>
+
+            {/* Existing Plans */}
+            <div className="space-y-3 mb-6">
+              {product.plans.length === 0 ? (
+                <div className="rounded border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
+                  No plans configured for this product yet.
+                </div>
+              ) : (
+                product.plans.map((pl) => (
+                  <div
+                    key={pl.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded border border-slate-200 p-3 bg-slate-50 text-sm"
+                  >
+                    <div>
+                      <div className="font-medium text-slate-900">{pl.name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-2">
+                        <span className="capitalize font-semibold text-blue-700">
+                          {pl.billing_frequency} (every {pl.interval_count})
+                        </span>
+                        <span>• Min Qty: {pl.minimum_quantity}</span>
+                        {pl.availability_end && (
+                          <span>• Expires: {new Date(pl.availability_end).toLocaleDateString()}</span>
+                        )}
+                        <span>• Early Close: {pl.allow_early_closure ? "Yes" : "No"}</span>
+                        <span>• Pausing: {pl.allow_pausing ? "Yes" : "No"}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleTogglePlan(pl.id, pl.is_active)}
+                        className={`text-xs px-2.5 py-1 rounded font-medium ${
+                          pl.is_active
+                            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                            : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                        }`}
+                      >
+                        {pl.is_active ? "Active" : "Archived"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
-            {/* Existing Plans Table */}
-            <div className="overflow-x-auto rounded border border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2">Plan Name</th>
-                    <th className="px-4 py-2">Frequency</th>
-                    <th className="px-4 py-2">Interval</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {product.plans.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-3 text-center text-xs text-slate-500">
-                        No billing plans configured. Customers cannot subscribe without a plan.
-                      </td>
-                    </tr>
-                  ) : (
-                    product.plans.map((pl) => (
-                      <tr key={pl.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{pl.name}</td>
-                        <td className="px-4 py-3 text-slate-700 capitalize">
-                          {pl.billing_frequency}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          Every {pl.interval_count} {pl.billing_frequency === "yearly" ? "year" : "month"}
-                          {pl.interval_count > 1 ? "s" : ""}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              pl.is_active
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {pl.is_active ? "Active" : "Disabled"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePlan(pl.id, pl.is_active)}
-                            className="text-xs text-blue-600 hover:text-blue-800"
-                          >
-                            {pl.is_active ? "Disable" : "Enable"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Add Plan Form */}
-            <form onSubmit={handleAddPlan} className="mt-4 rounded-md bg-slate-50 p-4 border border-slate-200">
-              <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wide mb-3">
-                Create Billing Plan
+            {/* Create Plan Form */}
+            <form onSubmit={handleAddPlan} className="space-y-4 border-t border-slate-200 pt-4">
+              <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
+                Add New Plan
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-700">Plan Name</label>
                   <input
                     type="text"
                     required
-                    placeholder="Plan Name (e.g. Annual Plan)"
+                    placeholder="e.g. Daily Trial Plan"
                     value={planName}
                     onChange={(e) => setPlanName(e.target.value)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                    className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-700">Billing Cycle</label>
                   <select
                     value={planFreq}
-                    onChange={(e) => setPlanFreq(e.target.value as "monthly" | "yearly")}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                    onChange={(e) => setPlanFreq(e.target.value as BillingFrequency)}
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none capitalize"
                   >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
                     <option value="yearly">Yearly</option>
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-700">Min Quantity</label>
                   <input
                     type="number"
                     min="1"
-                    placeholder="Interval count (e.g. 1)"
-                    value={planInterval}
-                    onChange={(e) => setPlanInterval(parseInt(e.target.value) || 1)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                    value={planMinQty}
+                    onChange={(e) => setPlanMinQty(parseInt(e.target.value) || 1)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
-              <div className="mt-3 flex justify-end">
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700">Availability Start</label>
+                  <input
+                    type="date"
+                    value={planStart}
+                    onChange={(e) => setPlanStart(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700">Availability End (Expiry)</label>
+                  <input
+                    type="date"
+                    value={planEnd}
+                    onChange={(e) => setPlanEnd(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Plan Permissions */}
+              <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4 text-xs text-slate-700">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={planAllowPausing}
+                    onChange={(e) => setPlanAllowPausing(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Allow Pausing
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={planAllowEarlyClose}
+                    onChange={(e) => setPlanAllowEarlyClose(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Allow Early Close
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={planAutoClose}
+                    onChange={(e) => setPlanAutoClose(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Auto-close on Expiry
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={planAllowRenewal}
+                    onChange={(e) => setPlanAllowRenewal(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Allow Renewals
+                </label>
+              </div>
+
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={isAddingPlan}
-                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 disabled:opacity-50"
                 >
-                  {isAddingPlan ? "Creating..." : "+ Add Plan"}
+                  {isAddingPlan ? "Creating..." : "+ Create Plan"}
                 </button>
               </div>
             </form>
@@ -516,4 +683,3 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
     </div>
   );
 }
-
