@@ -25,7 +25,7 @@ import {
   PlusCircle,
   RefreshCw,
 } from "lucide-react";
-import { DataTable, type ColumnDef } from "@/components/DataTable";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import type { CustomerDetailRecord } from "@/lib/customers/types";
 import { computeCustomerDirectoryMetrics } from "@/lib/customers/service";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
