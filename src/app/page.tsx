@@ -5,7 +5,6 @@ import {
   Zap,
   Layers,
   ArrowRight,
-  Activity,
   Terminal,
 } from "lucide-react";
 
@@ -30,14 +29,6 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Link
-              href="/api/health"
-              className="flex items-center space-x-1.5 rounded border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-600 transition-colors hover:text-slate-900"
-              target="_blank"
-            >
-              <Activity className="h-3.5 w-3.5 text-emerald-500" />
-              <span>/api/health</span>
-            </Link>
             <Link
               href="/login"
               className="px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900"
@@ -204,9 +195,6 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
           <p>© 2026 SubscriptIQ — Brightloop Software. Hackathon Foundation.</p>
           <div className="flex items-center space-x-6">
-            <Link href="/api/health" className="hover:text-slate-900">
-              System Health
-            </Link>
             <Link href="/dashboard" className="hover:text-slate-900">
               Internal Dashboard
             </Link>

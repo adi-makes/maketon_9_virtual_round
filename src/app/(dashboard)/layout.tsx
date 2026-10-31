@@ -9,6 +9,7 @@ import {
   CreditCard,
   Users,
   Shield,
+  UserCheck,
 } from "lucide-react";
 
 export default async function DashboardLayout({
@@ -42,6 +43,9 @@ export default async function DashboardLayout({
     { href: "/subscriptions", label: "Subscriptions", icon: Users },
     { href: "/invoices", label: "Invoices", icon: FileText },
     { href: "/payments", label: "Payments", icon: CreditCard },
+    ...(userRole === "admin"
+      ? [{ href: "/staff", label: "Staff & Team", icon: UserCheck }]
+      : []),
   ];
 
   return (

@@ -5,8 +5,8 @@ import Link from "next/link";
 import {
   transitionSubscriptionStatus,
   toggleCancelAtPeriodEnd,
-  ALLOWED_TRANSITIONS,
 } from "@/actions/subscriptions";
+import { ALLOWED_TRANSITIONS } from "@/lib/subscriptions/transitions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { SubscriptionStatus } from "@/types";
 

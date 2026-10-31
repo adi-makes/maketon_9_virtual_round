@@ -28,6 +28,5 @@ export const APP_CONFIG = {
     payments: "/payments",
     customers: "/customers",
     portal: "/portal",
-    health: "/api/health",
   },
 } as const;

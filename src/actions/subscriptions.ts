@@ -9,41 +9,11 @@ type SubscriptionUpdate = Database["public"]["Tables"]["subscriptions"]["Update"
 type SubscriptionInsert = Database["public"]["Tables"]["subscriptions"]["Insert"];
 type SubscriptionItemInsert = Database["public"]["Tables"]["subscription_items"]["Insert"];
 
-export const ALLOWED_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
-  draft: ["quotation", "confirmed"],
-  quotation: ["confirmed", "closed"],
-  confirmed: ["active", "closed"],
-  active: ["paused", "closed"],
-  paused: ["active", "closed"],
-  closed: [],
-};
-
-/**
- * Calculates next billing date based on start date, billing frequency, and interval count.
- */
-export function calculateNextBillingDate(
-  startDate: Date,
-  frequency: "monthly" | "yearly",
-  intervalCount: number = 1
-): Date {
-  const next = new Date(startDate.getTime());
-  if (frequency === "yearly") {
-    next.setFullYear(next.getFullYear() + Math.max(1, intervalCount));
-  } else {
-    next.setMonth(next.getMonth() + Math.max(1, intervalCount));
-  }
-  return next;
-}
-
-/**
- * Validates whether a state transition is permitted.
- */
-export function isValidTransition(
-  currentStatus: SubscriptionStatus,
-  nextStatus: SubscriptionStatus
-): boolean {
-  return ALLOWED_TRANSITIONS[currentStatus]?.includes(nextStatus) ?? false;
-}
+import {
+  ALLOWED_TRANSITIONS,
+  calculateNextBillingDate,
+  isValidTransition,
+} from "@/lib/subscriptions/transitions";
 
 /**
  * Transitions a subscription to its next lifecycle status with validation.

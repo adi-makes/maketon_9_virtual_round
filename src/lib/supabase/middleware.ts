@@ -56,7 +56,8 @@ export async function updateSession(request: NextRequest) {
     nextUrl.pathname.startsWith("/subscriptions") ||
     nextUrl.pathname.startsWith("/invoices") ||
     nextUrl.pathname.startsWith("/payments") ||
-    nextUrl.pathname.startsWith("/customers");
+    nextUrl.pathname.startsWith("/customers") ||
+    nextUrl.pathname.startsWith("/staff");
   const isPortalRoute = nextUrl.pathname.startsWith("/portal");
 
   // Determine user role from metadata, or fallback to email pattern
@@ -97,6 +98,13 @@ export async function updateSession(request: NextRequest) {
 
   // 4. Staff/Admin visiting customer portal get redirected to dashboard
   if (isPortalRoute && role && role !== "customer") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // 5. Only Admins can access staff & team management
+  if (nextUrl.pathname.startsWith("/staff") && role !== "admin") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
