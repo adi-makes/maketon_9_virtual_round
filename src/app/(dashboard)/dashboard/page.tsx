@@ -1,4 +1,4 @@
-import { DashboardView } from "@/components/dashboard/dashboard-view";
+import { DashboardPage as DashboardView } from "@/components/dashboard/DashboardPage";
 
 export const dynamic = "force-dynamic";
 

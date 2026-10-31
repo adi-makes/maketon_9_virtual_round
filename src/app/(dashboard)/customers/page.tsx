@@ -30,8 +30,8 @@ import {
   mockSubscriptions,
   mockInvoices,
   mockPayments,
-} from "@/mockData";
-import { DataTable, type ColumnDef } from "@/components/DataTable";
+} from "@/lib/mock-data";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import type { Database } from "@/types/database";
 
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];

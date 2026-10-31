@@ -35,7 +35,7 @@ import {
   mockCustomers,
   mockPlans,
   mockInvoices,
-} from "@/mockData";
+} from "@/lib/mock-data";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 
 export interface SubscriptionLineItem {
