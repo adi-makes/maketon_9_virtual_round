@@ -37,19 +37,28 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
   if (prodError || !product) {
     notFound();
+    return null;
   }
 
   return (
     <ProductDetailClient
       product={{
-        ...product,
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        is_active: product.is_active,
         base_price: Number(product.base_price),
         product_variants: (variants || []).map((v) => ({
-          ...v,
+          id: v.id,
+          name: v.name,
+          sku: v.sku,
           price_adjustment: Number(v.price_adjustment),
         })),
         plans: (plans || []).map((pl) => ({
-          ...pl,
+          id: pl.id,
+          name: pl.name,
+          interval_count: pl.interval_count,
+          is_active: pl.is_active,
           billing_frequency: pl.billing_frequency as "monthly" | "yearly",
         })),
       }}

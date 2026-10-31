@@ -60,7 +60,8 @@ export async function transitionSubscriptionStatus(
 
     // Acceptance Criteria 4: Activating a subscription sets initial current_period_start and next_billing_date
     if (nextStatus === "active") {
-      const planData = sub.plan as unknown as { billing_frequency: "monthly" | "yearly"; interval_count: number } | null;
+      const rawPlan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
+      const planData = rawPlan as unknown as { billing_frequency: "monthly" | "yearly"; interval_count: number } | null;
       const frequency = planData?.billing_frequency || "monthly";
       const intervalCount = planData?.interval_count || 1;
 

@@ -61,6 +61,7 @@ export default async function SubscriptionDetailPage({
 
   if (error || !sub) {
     notFound();
+    return null;
   }
 
   const customerData = sub.customer as unknown as {
@@ -112,4 +113,3 @@ export default async function SubscriptionDetailPage({
     />
   );
 }
-
