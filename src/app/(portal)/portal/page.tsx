@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { cleanPlanName } from "@/lib/subscriptions/display";
 import {
   CreditCard,
   Calendar,
@@ -169,7 +170,7 @@ export default async function PortalPage() {
                         {sub.plans?.products?.name || "Enterprise Cloud Suite"}
                       </h3>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        {sub.plans?.name || "Monthly Standard Plan"}
+                        {cleanPlanName(sub.plans?.name)}
                       </p>
                     </div>
                     <span className="inline-flex items-center rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-emerald-800">
@@ -291,7 +292,6 @@ export default async function PortalPage() {
                             invoiceId={inv.id}
                             outstandingBalance={Number(inv.outstanding_balance)}
                             invoiceNumber={inv.invoice_number}
-                            formatCurrency={formatCurrency}
                           />
                         ) : (
                           <button className="inline-flex items-center text-xs font-medium text-indigo-600 hover:text-indigo-800">

@@ -15,19 +15,18 @@
 import React, { useState, useTransition } from "react";
 import { CreditCard, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { portalPayInvoiceAction } from "@/actions/portal-payments";
+import { formatCurrency } from "@/lib/utils";
 
 interface PortalPayButtonProps {
   invoiceId: string;
   outstandingBalance: number;
   invoiceNumber: string;
-  formatCurrency: (amount: number) => string;
 }
 
 export function PortalPayButton({
   invoiceId,
   outstandingBalance,
   invoiceNumber,
-  formatCurrency,
 }: PortalPayButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{
