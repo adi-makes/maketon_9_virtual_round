@@ -8,6 +8,7 @@ import {
   FileText,
   CreditCard,
   Users,
+  Building2,
   Shield,
   UserCheck,
 } from "lucide-react";
@@ -38,6 +39,7 @@ export default async function DashboardLayout({
 
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/customers", label: "Customers", icon: Building2 },
     { href: "/products", label: "Products & Variants", icon: Package },
     { href: "/plans", label: "Plans", icon: Layers },
     { href: "/subscriptions", label: "Subscriptions", icon: Users },

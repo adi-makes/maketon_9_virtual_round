@@ -425,6 +425,10 @@ export interface Database {
           fixed_amount: number | null;
           is_active: boolean;
           valid_until: string | null;
+          /** Maximum total redemptions allowed. NULL = unlimited. */
+          max_redemptions: number | null;
+          /** Monotonically-increasing counter updated atomically by claim_discount_redemption(). */
+          times_redeemed: number;
           created_at: string;
           updated_at: string;
         };
@@ -436,6 +440,8 @@ export interface Database {
           fixed_amount?: number | null;
           is_active?: boolean;
           valid_until?: string | null;
+          max_redemptions?: number | null;
+          times_redeemed?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -447,6 +453,7 @@ export interface Database {
           fixed_amount?: number | null;
           is_active?: boolean;
           valid_until?: string | null;
+          max_redemptions?: number | null;
           updated_at?: string;
         };
         Relationships: [];

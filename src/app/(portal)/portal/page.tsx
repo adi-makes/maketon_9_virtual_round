@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   CreditCard,
@@ -10,6 +11,7 @@ import {
   Receipt,
   Download,
 } from "lucide-react";
+import { PortalPayButton } from "@/components/portal/PortalPayButton";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +28,22 @@ export default async function PortalPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
+    let customerId: string | null = null;
+    const admin = getAdminClient();
+
     if (user) {
-      const { data: profile } = await supabase
+      // First try standard client, fallback to admin client to read profile linkage
+      const profileQuery = (admin || supabase)
         .from("profiles")
-        .select("full_name, customer:customers(name, company_name)")
+        .select("customer_id, full_name, customer:customers(name, company_name)")
         .eq("id", user.id)
         .single();
+
+      const { data: profile } = await profileQuery;
+
+      if (profile?.customer_id) {
+        customerId = profile.customer_id;
+      }
 
       const custData = profile?.customer as unknown as { name?: string; company_name?: string } | null;
       if (custData?.company_name) {
@@ -43,8 +55,9 @@ export default async function PortalPage() {
       }
     }
 
-    // 2. Query subscriptions
-    const { data: subsData } = await supabase
+    // 2. Query subscriptions (isolated strictly to this customer's account)
+    const clientToQuery = admin || supabase;
+    let subsQuery = clientToQuery
       .from("subscriptions")
       .select(
         `
@@ -65,15 +78,27 @@ export default async function PortalPage() {
       )
       .order("created_at", { ascending: false });
 
+    if (customerId) {
+      subsQuery = subsQuery.eq("customer_id", customerId);
+    }
+
+    const { data: subsData } = await subsQuery;
+
     if (subsData && subsData.length > 0) {
       subscriptions = subsData;
     }
 
-    // 3. Query invoices
-    const { data: invsData } = await supabase
+    // 3. Query invoices (isolated strictly to this customer's account)
+    let invsQuery = clientToQuery
       .from("invoices")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (customerId) {
+      invsQuery = invsQuery.eq("customer_id", customerId);
+    }
+
+    const { data: invsData } = await invsQuery;
 
     if (invsData && invsData.length > 0) {
       invoices = invsData;
@@ -254,9 +279,12 @@ export default async function PortalPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         {inv.outstanding_balance > 0 ? (
-                          <button className="cursor-pointer rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700">
-                            Pay Now
-                          </button>
+                          <PortalPayButton
+                            invoiceId={inv.id}
+                            outstandingBalance={Number(inv.outstanding_balance)}
+                            invoiceNumber={inv.invoice_number}
+                            formatCurrency={formatCurrency}
+                          />
                         ) : (
                           <button className="inline-flex items-center text-xs font-medium text-indigo-600 hover:text-indigo-800">
                             <Download className="mr-1 h-3.5 w-3.5" />
