@@ -1,5 +1,10 @@
 import type { CustomerRow, CustomerDetailRecord, CustomerBillingAddress, CustomerDirectoryMetrics } from "./types";
-import { cleanPlanName } from "@/lib/subscriptions/display";
+const PLAN_TAG_REGEX = /\[PLAN_CFG:(\{.*?\})\]$/;
+
+function cleanPlanName(name?: string | null): string {
+  if (!name) return "Standard Plan";
+  return name.replace(PLAN_TAG_REGEX, "").trim() || "Standard Plan";
+}
 
 // Palette generator for initials avatar
 const COLOR_CLASSES = [

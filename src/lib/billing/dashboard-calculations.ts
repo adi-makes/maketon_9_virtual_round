@@ -3,7 +3,12 @@
  * Pure, isolated financial calculation functions for the executive dashboard.
  */
 
-import { cleanPlanName } from "@/lib/subscriptions/display";
+const PLAN_TAG_REGEX = /\[PLAN_CFG:(\{.*?\})\]$/;
+
+function cleanPlanName(name?: string | null): string {
+  if (!name) return "Standard Plan";
+  return name.replace(PLAN_TAG_REGEX, "").trim() || "Standard Plan";
+}
 
 /**
  * Converts a currency value in INR (e.g. 123.45) to integer paise (12345).
