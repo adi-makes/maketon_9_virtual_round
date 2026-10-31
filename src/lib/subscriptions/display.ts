@@ -1,7 +1,3 @@
-import type { SubscriptionStatus, BillingFrequency } from "@/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { parsePlan } from "@/lib/plans/config";
-
 export interface SubscriptionLineItem {
   title: string;
   detail: string;
@@ -51,13 +47,37 @@ export interface SubscriptionDisplayItem {
   auto_renew: boolean;
 }
 
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+export function formatDate(dateString: string | Date): string {
+  const date =
+    typeof dateString === "string" ? new Date(dateString) : dateString;
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+const PLAN_TAG_REGEX = /\[PLAN_CFG:(\{.*?\})\]$/;
+
+export function cleanPlanName(name?: string | null): string {
+  if (!name) return "Standard Plan";
+  return name.replace(PLAN_TAG_REGEX, "").trim() || "Standard Plan";
+}
+
 /**
  * Maps raw database subscription record with relations into typed SubscriptionDisplayItem.
  */
 export function formatSubscriptionDisplay(sub: Record<string, any>): SubscriptionDisplayItem {
   const customer = Array.isArray(sub.customer) ? sub.customer[0] : sub.customer;
   const rawPlan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
-  const planConfig = rawPlan ? parsePlan(rawPlan as Parameters<typeof parsePlan>[0]) : null;
   const rawProduct = rawPlan?.product
     ? Array.isArray(rawPlan.product)
       ? rawPlan.product[0]
@@ -81,8 +101,8 @@ export function formatSubscriptionDisplay(sub: Record<string, any>): Subscriptio
       ? (words[0][0] + words[1][0]).toUpperCase()
       : initialsSource.slice(0, 2).toUpperCase();
 
-  const planName = planConfig?.cleanName || rawPlan?.name || "Standard Plan";
-  const frequency = (planConfig?.billingFrequency || rawPlan?.billing_frequency || "monthly").toLowerCase();
+  const planName = cleanPlanName(rawPlan?.name);
+  const frequency = (rawPlan?.billing_frequency || "monthly").toLowerCase();
 
   const billingCycle: SubscriptionDisplayItem["billing_cycle"] =
     frequency === "yearly"

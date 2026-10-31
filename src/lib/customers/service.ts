@@ -1,5 +1,4 @@
 import type { CustomerRow, CustomerDetailRecord, CustomerBillingAddress, CustomerDirectoryMetrics } from "./types";
-import { parsePlan } from "../plans/config.ts";
 
 // Palette generator for initials avatar
 const COLOR_CLASSES = [
@@ -60,7 +59,7 @@ export function buildCustomerDetailRecord(
 
   const subscriptions = rawSubs.map((sub) => {
     const rawPlan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan || sub.plans;
-    const planConfig = rawPlan ? parsePlan(rawPlan as Parameters<typeof parsePlan>[0]) : null;
+
     const rawProduct = rawPlan?.product
       ? Array.isArray(rawPlan.product)
         ? rawPlan.product[0]
@@ -82,8 +81,8 @@ export function buildCustomerDetailRecord(
       subAmount = Number(rawProduct.base_price) || 0;
     }
 
-    const frequency = (planConfig?.billingFrequency || rawPlan?.billing_frequency || "monthly").toLowerCase();
-    const intervalCount = Math.max(1, planConfig?.intervalCount || rawPlan?.interval_count || 1);
+    const frequency = (rawPlan?.billing_frequency || "monthly").toLowerCase();
+    const intervalCount = Math.max(1, rawPlan?.interval_count || 1);
 
     if (sub.status === "active") {
       activeSubsCount++;
@@ -105,7 +104,7 @@ export function buildCustomerDetailRecord(
       status: sub.status,
       start_date: sub.start_date,
       next_billing_date: sub.next_billing_date || null,
-      plan_name: planConfig?.cleanName || rawPlan?.name || "Standard Plan",
+      plan_name: rawPlan?.name || "Standard Plan",
       billing_frequency: frequency,
       amount: subAmount,
     };

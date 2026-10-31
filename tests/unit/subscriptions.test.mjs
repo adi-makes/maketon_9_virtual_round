@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { formatSubscriptionDisplay } from "../../src/lib/subscriptions/display.ts";
 
 // State transitions map
 const ALLOWED_TRANSITIONS = {
@@ -97,6 +98,130 @@ describe("Product Variant and Pricing Calculations (Member 2)", () => {
     const { unitPrice, total } = calculateSubscriptionTotal(100, -150, 1);
     assert.equal(unitPrice, 0);
     assert.equal(total, 0);
+  });
+});
+
+describe("Live Subscription Listing & Record Transformation (Member 2)", () => {
+  it("transforms raw database subscription with joined relations into live display item", () => {
+    const rawSub = {
+      id: "32f8834b-a7a6-4bff-b3bc-4ec4c30fb2b1",
+      customer_id: "cust-uuid-1",
+      plan_id: "plan-uuid-1",
+      status: "active",
+      start_date: "2026-10-31T06:59:21.759Z",
+      current_period_start: "2026-10-31T06:59:21.759Z",
+      current_period_end: "2026-11-30T06:59:21.759Z",
+      next_billing_date: "2026-11-30T06:59:21.759Z",
+      cancel_at_period_end: false,
+      created_at: "2026-10-31T06:59:24.370Z",
+      customer: {
+        id: "cust-uuid-1",
+        name: "Sarah Connor",
+        email: "sarah.connor@cyberdyne.io",
+        phone: "+91 98765 43210",
+        company_name: "Cyberdyne Systems",
+      },
+      plan: {
+        id: "plan-uuid-1",
+        name: "Monthly Standard Plan",
+        billing_frequency: "monthly",
+        product: {
+          id: "prod-uuid-1",
+          name: "SubscriptIQ Cloud Suite",
+          base_price: 1000,
+        },
+      },
+      items: [
+        {
+          id: "item-1",
+          quantity: 2,
+          unit_price: 1000,
+          variant: { id: "var-1", name: "Enterprise Seat" },
+        },
+      ],
+      invoices: [],
+    };
+
+    const item = formatSubscriptionDisplay(rawSub);
+
+    assert.equal(item.id, "32f8834b-a7a6-4bff-b3bc-4ec4c30fb2b1");
+    assert.equal(item.code, "SUB-32F8834B");
+    assert.equal(item.customer_name, "Sarah Connor");
+    assert.equal(item.customer_company, "Cyberdyne Systems");
+    assert.equal(item.customer_initials, "CS");
+    assert.equal(item.plan_name, "Monthly Standard Plan");
+    assert.equal(item.billing_cycle, "Monthly");
+    assert.equal(item.amount, 2000);
+    assert.equal(item.amount_cadence, "per month");
+    assert.equal(item.status, "active");
+    assert.equal(item.auto_renew, true);
+    assert.equal(item.mandate_verified, true);
+    assert.equal(item.line_items.length, 1);
+    assert.equal(item.line_items[0].title, "Enterprise Seat");
+  });
+
+  it("handles cancelled subscription with cancel_at_period_end", () => {
+    const rawSub = {
+      id: "sub-cancel-1234",
+      customer_id: "cust-1",
+      plan_id: "plan-1",
+      status: "active",
+      start_date: "2026-01-01T00:00:00Z",
+      cancel_at_period_end: true,
+      customer: { name: "John Doe", company_name: "Acme Corp" },
+      plan: { name: "Pro Plan", billing_frequency: "yearly" },
+      items: [{ quantity: 1, unit_price: 12000 }],
+    };
+
+    const item = formatSubscriptionDisplay(rawSub);
+    assert.equal(item.auto_renew, false);
+    assert.equal(item.billing_cycle, "Yearly");
+    assert.equal(item.amount, 12000);
+    assert.equal(item.amount_cadence, "per year");
+  });
+
+  it("handles paused and closed subscriptions with proper timeline messaging", () => {
+    const pausedSub = {
+      id: "sub-paused-1",
+      customer_id: "cust-1",
+      plan_id: "plan-1",
+      status: "paused",
+      customer: { name: "Alice Smith" },
+      plan: { name: "Starter Plan", billing_frequency: "monthly" },
+      items: [],
+    };
+    const pausedItem = formatSubscriptionDisplay(pausedSub);
+    assert.equal(pausedItem.status, "paused");
+    assert.equal(pausedItem.timeline_next, "Paused");
+
+    const closedSub = {
+      id: "sub-closed-1",
+      customer_id: "cust-1",
+      plan_id: "plan-1",
+      status: "closed",
+      customer: { name: "Bob Martin" },
+      plan: { name: "Starter Plan", billing_frequency: "monthly" },
+      items: [],
+    };
+    const closedItem = formatSubscriptionDisplay(closedSub);
+    assert.equal(closedItem.status, "closed");
+    assert.equal(closedItem.timeline_next, "Closed");
+  });
+
+  it("handles draft and quotation statuses with pending activation timeline", () => {
+    const draftSub = {
+      id: "sub-draft-1",
+      customer_id: "cust-1",
+      plan_id: "plan-1",
+      status: "draft",
+      customer: { name: "Charlie Green" },
+      plan: { name: "Custom Plan", billing_frequency: "monthly" },
+      items: [],
+    };
+    const draftItem = formatSubscriptionDisplay(draftSub);
+    assert.equal(draftItem.status, "draft");
+    assert.equal(draftItem.timeline_next, "Pending Activation");
+    assert.equal(draftItem.mandate_verified, false);
   });
 });
 
