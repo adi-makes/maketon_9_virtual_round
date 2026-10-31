@@ -9,10 +9,9 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from "recharts";
-import { Users, UserPlus, Calendar, Layers } from "lucide-react";
-import { mockRevenueStats, MonthlyRevenueStat } from "../mockData";
+import { Users, UserPlus, Calendar } from "lucide-react";
+import { mockRevenueStats, type MonthlyRevenueStat } from "@/lib/mock-data";
 
 export interface SubscriptionGrowthChartProps {
   data?: MonthlyRevenueStat[];

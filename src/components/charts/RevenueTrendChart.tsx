@@ -11,7 +11,7 @@ import {
   Tooltip,
 } from "recharts";
 import { TrendingUp, Wallet, ArrowUpRight, Calendar } from "lucide-react";
-import { mockRevenueStats, MonthlyRevenueStat } from "../mockData";
+import { mockRevenueStats, type MonthlyRevenueStat } from "@/lib/mock-data";
 
 export interface RevenueTrendChartProps {
   data?: MonthlyRevenueStat[];
@@ -166,3 +166,4 @@ export function RevenueTrendChart({
 }
 
 export default RevenueTrendChart;
+

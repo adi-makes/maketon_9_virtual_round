@@ -34,9 +34,9 @@ import {
   mockPayments,
   mockPlans,
   mockRevenueStats,
-} from "../mockData";
-import { RevenueTrendChart } from "../charts/RevenueTrendChart";
-import { SubscriptionGrowthChart } from "../charts/SubscriptionGrowthChart";
+} from "@/lib/mock-data";
+import { RevenueTrendChart } from "@/components/charts/RevenueTrendChart";
+import { SubscriptionGrowthChart } from "@/components/charts/SubscriptionGrowthChart";
 
 export function DashboardPage() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);

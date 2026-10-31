@@ -13,7 +13,7 @@ import {
   CreditCard,
   Settings,
   ChevronsUpDown,
-  LucideIcon,
+  type LucideIcon,
 } from "lucide-react";
 
 interface NavItem {
@@ -147,3 +147,4 @@ export function Sidebar() {
 }
 
 export default Sidebar;
+
