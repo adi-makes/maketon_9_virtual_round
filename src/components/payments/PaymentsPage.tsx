@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Download,
   Plus,
@@ -25,6 +26,7 @@ import {
   Copy,
   Check,
   AlertCircle,
+  X,
 } from "lucide-react";
 import {
   mockPayments,
@@ -33,16 +35,37 @@ import {
 } from "@/lib/mock-data";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import type { Database } from "@/types/database";
+import { recordPaymentAction } from "@/actions/payments";
 
 type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
 
-export function PaymentsPage() {
-  const [selectedPayment, setSelectedPayment] = useState<PaymentRow>(mockPayments[0]);
+interface PaymentsPageProps {
+  initialPayments?: any[];
+  unpaidInvoices?: any[];
+}
+
+export function PaymentsPage({ initialPayments, unpaidInvoices = [] }: PaymentsPageProps = {}) {
+  const router = useRouter();
+  const rawPayments = initialPayments && initialPayments.length > 0 ? initialPayments : mockPayments;
+  const [selectedPayment, setSelectedPayment] = useState<any>(rawPayments[0]);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [gatewayFilter, setGatewayFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Record Payment Modal State
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [targetInvoiceId, setTargetInvoiceId] = useState<string>(
+    unpaidInvoices.length > 0 ? unpaidInvoices[0].id : ""
+  );
+  const [paymentAmount, setPaymentAmount] = useState<string>(
+    unpaidInvoices.length > 0 ? String(unpaidInvoices[0].outstanding_balance) : ""
+  );
+  const [paymentMethod, setPaymentMethod] = useState<string>("manual_entry");
+  const [paymentReference, setPaymentReference] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Helpers
   const formatINR = (val: number) => {
@@ -50,7 +73,7 @@ export function PaymentsPage() {
       style: "currency",
       currency: "INR",
       maximumFractionDigits: 2,
-    }).format(val);
+    }).format(val || 0);
   };
 
   const formatDate = (dateStr: string) => {
@@ -64,18 +87,62 @@ export function PaymentsPage() {
     });
   };
 
-  const getCustomer = (customerId: string) => {
+  const getCustomer = (customerId: string, payObj?: any) => {
+    if (payObj?.customer) return payObj.customer;
     return mockCustomers.find((c) => c.id === customerId);
   };
 
   const getInvoice = (invoiceId: string) => {
+    const foundInUnpaid = unpaidInvoices.find((i) => i.id === invoiceId);
+    if (foundInUnpaid) return foundInUnpaid;
     return mockInvoices.find((i) => i.id === invoiceId);
   };
 
+  const handleSelectInvoice = (invId: string) => {
+    setTargetInvoiceId(invId);
+    const chosen = unpaidInvoices.find((i) => i.id === invId);
+    if (chosen) {
+      setPaymentAmount(String(chosen.outstanding_balance));
+    }
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetInvoiceId) {
+      setFeedback({ type: "error", text: "Please select an invoice." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    const formData = new FormData();
+    formData.append("invoiceId", targetInvoiceId);
+    formData.append("amount", paymentAmount);
+    formData.append("method", paymentMethod);
+    if (paymentReference) {
+      formData.append("reference", paymentReference);
+    }
+
+    try {
+      const res = await recordPaymentAction(formData);
+      if (res.success) {
+        setIsRecordModalOpen(false);
+        setFeedback({ type: "success", text: res.message || "Payment recorded successfully." });
+        router.refresh();
+      } else {
+        setFeedback({ type: "error", text: res.error || "Failed to record payment." });
+      }
+    } catch {
+      setFeedback({ type: "error", text: "Unexpected error recording payment." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Filtered dataset
-  const filteredPayments = mockPayments.filter((p) => {
-    const customer = getCustomer(p.customer_id);
-    const invoice = getInvoice(p.invoice_id);
+  const filteredPayments = rawPayments.filter((p: any) => {
+    const customer = getCustomer(p.customer_id, p);
     const customerName = customer?.company_name || customer?.name || "";
 
     const matchesSearch =
@@ -92,145 +159,126 @@ export function PaymentsPage() {
       (gatewayFilter === "manual_entry" && p.method === "manual_entry");
 
     const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "successful" && p.status === "completed") ||
-      (statusFilter === "processing" && p.status === "pending") ||
-      (statusFilter === "refunded" && p.status === "refunded") ||
-      (statusFilter === "failed" && p.status === "failed");
+      statusFilter === "all" || p.status === statusFilter;
 
     return matchesSearch && matchesGateway && matchesStatus;
   });
 
   // KPI Computations
-  const totalReceived = mockPayments
-    .filter((p) => p.status === "completed")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const totalReceived = rawPayments
+    .filter((p: any) => p.status === "completed")
+    .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
-  const pendingAmount = mockPayments
-    .filter((p) => p.status === "pending")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const pendingAmount = rawPayments
+    .filter((p: any) => p.status === "pending")
+    .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
-  const failedOrRefunded = mockPayments.filter(
-    (p) => p.status === "failed" || p.status === "refunded"
+  const failedOrRefunded = rawPayments.filter(
+    (p: any) => p.status === "failed" || p.status === "refunded"
   );
-  const failedAmount = failedOrRefunded.reduce((sum, p) => sum + p.amount, 0);
 
-  // Copy Webhook Payload Handler
-  const handleCopyWebhook = () => {
+  const copySimulatedWebhook = () => {
     if (!selectedPayment) return;
-    const samplePayload = {
-      entity: "event",
-      event:
-        selectedPayment.status === "completed"
-          ? "payment.captured"
-          : selectedPayment.status === "refunded"
-          ? "payment.refunded"
-          : "payment.pending",
-      contains: ["payment"],
-      payload: {
-        payment: {
-          entity: {
-            id: selectedPayment.reference || selectedPayment.payment_number,
-            amount: Math.round(selectedPayment.amount * 100),
-            currency: "INR",
-            status: selectedPayment.status,
-            method: selectedPayment.method,
-            customer_id: selectedPayment.customer_id,
-            invoice_id: selectedPayment.invoice_id,
-          },
+    const payload = JSON.stringify(
+      {
+        event:
+          selectedPayment.status === "completed"
+            ? "payment.captured"
+            : selectedPayment.status === "refunded"
+            ? "payment.refunded"
+            : "payment.failed",
+        data: {
+          id: selectedPayment.reference || selectedPayment.payment_number,
+          amount: Math.round(selectedPayment.amount * 100),
+          currency: "INR",
+          status: selectedPayment.status,
+          method: selectedPayment.method,
+          customer_id: selectedPayment.customer_id,
+          invoice_id: selectedPayment.invoice_id,
         },
       },
-    };
-
-    navigator.clipboard?.writeText(JSON.stringify(samplePayload, null, 2));
+      null,
+      2
+    );
+    navigator.clipboard.writeText(payload);
     setCopiedWebhook(true);
     setTimeout(() => setCopiedWebhook(false), 2000);
   };
 
-  // Method Icon & Label Component
-  const renderMethodBadge = (method: PaymentRow["method"]) => {
+  const renderMethodBadge = (method: string) => {
     switch (method) {
       case "razorpay":
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">
-            <QrCode size={13} className="text-primary" />
-            <span>Razorpay (UPI)</span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-blue-50 text-blue-700">
+            <QrCode size={12} /> UPI / Razorpay
+          </span>
         );
       case "stripe":
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">
-            <CreditCard size={13} className="text-secondary" />
-            <span>Stripe Card</span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-purple-50 text-purple-700">
+            <CreditCard size={12} /> Stripe Card
+          </span>
         );
       case "bank_transfer":
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">
-            <Landmark size={13} className="text-tertiary" />
-            <span>Bank Transfer</span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+            <Landmark size={12} /> Bank Transfer
+          </span>
         );
       case "manual_entry":
       default:
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">
-            <RefreshCw size={13} className="text-outline" />
-            <span>Manual Entry</span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-surface-container text-on-surface-variant">
+            <Receipt size={12} /> Manual / Offline
+          </span>
         );
     }
   };
 
-  // Status Badge Component
-  const renderStatusBadge = (status: PaymentRow["status"]) => {
+  const renderStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-label-sm text-[11px] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-            Successful
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+            <CheckCircle2 size={12} /> SETTLED
           </span>
         );
       case "pending":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-label-sm text-[11px] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
-            Processing
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-amber-50 text-amber-700">
+            <Clock size={12} /> PROCESSING
           </span>
         );
       case "refunded":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-label-sm text-[11px] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-            Refunded
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-rose-50 text-rose-700">
+            <RotateCcw size={12} /> REFUNDED
           </span>
         );
       case "failed":
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-container text-error font-label-sm text-[11px] font-semibold">
-            <AlertCircle size={12} />
-            <span>Failed</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-[11px] font-semibold bg-error-container text-error">
+            <AlertCircle size={12} /> FAILED
           </span>
         );
     }
   };
 
-  // Define Columns for the DataTable
-  const columns: ColumnDef<PaymentRow>[] = [
+  // Define Columns for Reusable DataTable
+  const columns: ColumnDef<any>[] = [
     {
       header: "Payment ID",
       cell: (p) => {
         const isSelected = selectedPayment?.id === p.id;
         return (
-          <div className="flex items-center gap-1.5 font-mono-data-sm text-mono-data-sm font-semibold">
+          <div className="flex items-center gap-2">
             <span
               className={`w-1.5 h-1.5 rounded-full ${
                 isSelected ? "bg-primary" : "bg-transparent"
               }`}
             />
-            <span className={isSelected ? "text-primary" : "text-on-surface"}>
+            <span className="font-mono-data-sm text-mono-data-sm font-semibold text-primary">
               {p.payment_number}
             </span>
           </div>
@@ -240,22 +288,26 @@ export function PaymentsPage() {
     {
       header: "Customer",
       cell: (p) => {
-        const customer = getCustomer(p.customer_id);
-        const name = customer?.company_name || customer?.name || "Customer Entity";
+        const customer = getCustomer(p.customer_id, p);
         return (
-          <span className="font-medium text-on-surface truncate max-w-[160px] block">
-            {name}
-          </span>
+          <div className="flex flex-col">
+            <span className="font-label-md text-label-md text-on-surface font-medium truncate max-w-[140px]">
+              {customer?.company_name || customer?.name || "Client Org"}
+            </span>
+            <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px] font-mono truncate max-w-[140px]">
+              {p.reference || "N/A"}
+            </span>
+          </div>
         );
       },
     },
     {
       header: "Invoice",
       cell: (p) => {
-        const invoice = getInvoice(p.invoice_id);
+        const inv = getInvoice(p.invoice_id);
         return (
-          <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant">
-            {invoice?.invoice_number || "INV-N/A"}
+          <span className="font-mono-data-sm text-mono-data-sm text-on-surface font-medium">
+            {inv?.invoice_number || `INV-${p.invoice_id?.slice(0, 8)}`}
           </span>
         );
       },
@@ -265,27 +317,19 @@ export function PaymentsPage() {
       cell: (p) => renderMethodBadge(p.method),
     },
     {
-      header: "Transaction UTR",
-      cell: (p) => (
-        <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant truncate max-w-[140px] block">
-          {p.reference || "OFFLINE_RECORD"}
-        </span>
-      ),
-    },
-    {
-      header: "Date & Time",
-      cell: (p) => (
-        <span className="whitespace-nowrap text-on-surface-variant font-body-sm text-xs">
-          {formatDate(p.created_at)}
-        </span>
-      ),
-    },
-    {
       header: "Amount",
       align: "right",
       cell: (p) => (
-        <span className="font-mono-data-sm text-mono-data-sm font-semibold text-on-surface">
+        <span className="font-mono-data-sm text-mono-data-sm font-bold text-on-surface">
           {formatINR(p.amount)}
+        </span>
+      ),
+    },
+    {
+      header: "Date",
+      cell: (p) => (
+        <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant text-xs">
+          {formatDate(p.created_at)}
         </span>
       ),
     },
@@ -294,40 +338,26 @@ export function PaymentsPage() {
       align: "center",
       cell: (p) => renderStatusBadge(p.status),
     },
-    {
-      header: "Actions",
-      align: "right",
-      cell: () => (
-        <button
-          type="button"
-          className="p-1 rounded hover:bg-surface-container text-on-surface-variant transition-colors"
-          title="Options"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <MoreVertical size={16} />
-        </button>
-      ),
-    },
   ];
 
-  // Selected payment customer & invoice details
-  const inspectorCustomer = selectedPayment ? getCustomer(selectedPayment.customer_id) : null;
+  // Document Inspector Details
+  const inspectorCustomer = selectedPayment ? getCustomer(selectedPayment.customer_id, selectedPayment) : null;
   const inspectorInvoice = selectedPayment ? getInvoice(selectedPayment.invoice_id) : null;
-  const grossAmount = selectedPayment ? selectedPayment.amount : 0;
-  const gatewayFee = grossAmount * 0.02;
-  const gstOnFee = gatewayFee * 0.18;
-  const netEscrow = Math.max(0, grossAmount - gatewayFee - gstOnFee);
+  const grossAmount = selectedPayment ? Number(selectedPayment.amount || 0) : 0;
+  const estimatedGstFee = Math.round(grossAmount * 0.02 * 1.18 * 100) / 100;
+  const netSettlement = Math.max(0, grossAmount - estimatedGstFee);
 
   return (
     <main className="w-full pt-16 flex-1 px-gutter-md py-space-lg bg-surface min-h-screen">
       <div className="flex flex-col w-full space-y-space-lg">
-        {/* Header / Telemetry Bar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
-          <div className="flex flex-col space-y-space-xs">
-            <div className="flex items-center gap-space-xs">
-              <span className="font-label-sm text-label-sm uppercase tracking-wider text-primary font-semibold text-[11px]">
-                SubscriptIQ Financial Telemetry
-              </span>
+        {/* Top Header & Search Bar */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md">
+          <div className="space-y-1">
+            <div className="flex items-center gap-space-xs font-mono-data-sm text-mono-data-sm text-on-surface-variant uppercase tracking-wider text-xs">
+              <span>Financial Ledger</span>
+              <span>/</span>
+              <span className="text-primary font-medium">Transactions</span>
+              <span>/</span>
               <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
               <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant text-xs">
                 NODE_MUMBAI_01
@@ -337,21 +367,15 @@ export function PaymentsPage() {
               Payments
             </h1>
             <p className="font-body-md text-body-md text-on-surface-variant max-w-3xl text-sm">
-              Monitor incoming subscription payments, payment gateway transactions, payouts, and automated retries.
+              Monitor incoming subscription payments, payment gateway transactions, payouts, and manual offline recordings.
             </p>
           </div>
 
           {/* Global Actions */}
           <div className="flex flex-wrap items-center gap-space-sm">
             <button
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container shadow-sm transition-all font-label-md text-label-md text-xs font-medium border border-surface-container-high/30"
-              type="button"
-            >
-              <Download size={16} className="text-on-surface-variant" />
-              <span>Export Statement</span>
-            </button>
-            <button
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary-container shadow-sm transition-all font-label-md text-label-md text-xs font-semibold"
+              onClick={() => setIsRecordModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all font-label-md text-label-md text-xs font-semibold"
               type="button"
             >
               <Plus size={16} />
@@ -359,6 +383,26 @@ export function PaymentsPage() {
             </button>
           </div>
         </div>
+
+        {/* Feedback Banner */}
+        {feedback && (
+          <div
+            className={`p-3 rounded-lg text-xs flex items-center justify-between border ${
+              feedback.type === "success"
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-rose-50 text-rose-800 border-rose-200"
+            }`}
+          >
+            <span>{feedback.text}</span>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="text-xs font-semibold hover:underline ml-4"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Operational Filtration Bar */}
         <div className="p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-space-sm border border-surface-container-high/30">
@@ -379,37 +423,32 @@ export function PaymentsPage() {
               <select
                 value={gatewayFilter}
                 onChange={(e) => setGatewayFilter(e.target.value)}
-                className="h-9 px-3 pr-8 rounded-lg bg-surface text-on-surface font-label-md text-label-md appearance-none focus:outline-none cursor-pointer border border-surface-container-high/20 text-xs"
+                className="h-9 pl-3 pr-8 rounded-lg bg-surface font-label-md text-label-md text-on-surface cursor-pointer appearance-none focus:outline-none focus:bg-surface-container-low border border-surface-container-high/20"
               >
                 <option value="all">All Gateways</option>
+                <option value="manual_entry">Manual / Offline</option>
+                <option value="bank_transfer">Bank Transfer</option>
                 <option value="razorpay">Razorpay</option>
                 <option value="stripe">Stripe</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="manual_entry">Manual Entry</option>
               </select>
-              <ChevronDown
-                size={14}
-                className="pointer-events-none absolute right-2.5 top-2.5 text-on-surface-variant"
-              />
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" />
             </div>
 
-            {/* Date Range Button */}
-            <button
-              className="h-9 px-3 rounded-lg bg-surface text-on-surface hover:bg-surface-container flex items-center gap-1.5 font-label-md text-label-md transition-colors border border-surface-container-high/20"
-              type="button"
-            >
-              <Calendar size={14} className="text-on-surface-variant" />
-              <span>This Month</span>
-            </button>
-
-            {/* Advanced Filter Toggle */}
-            <button
-              className="h-9 w-9 rounded-lg bg-surface text-on-surface hover:bg-surface-container flex items-center justify-center transition-colors border border-surface-container-high/20"
-              type="button"
-              aria-label="Filter Options"
-            >
-              <SlidersHorizontal size={16} className="text-on-surface-variant" />
-            </button>
+            {/* Status Filter Dropdown */}
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-9 pl-3 pr-8 rounded-lg bg-surface font-label-md text-label-md text-on-surface cursor-pointer appearance-none focus:outline-none focus:bg-surface-container-low border border-surface-container-high/20"
+              >
+                <option value="all">All Statuses</option>
+                <option value="completed">Completed / Settled</option>
+                <option value="pending">Pending</option>
+                <option value="refunded">Refunded</option>
+                <option value="failed">Failed</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" />
+            </div>
           </div>
         </div>
 
@@ -417,7 +456,6 @@ export function PaymentsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
           {/* Card 1: Total Received */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/20">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary/5 rounded-full blur-xl group-hover:bg-primary/10 transition-all pointer-events-none" />
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant text-[11px] font-semibold">
                 Total Payments Received
@@ -440,11 +478,11 @@ export function PaymentsPage() {
             </div>
           </div>
 
-          {/* Card 2: Captured This Month */}
+          {/* Card 2: Captured Payments */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/20">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant text-[11px] font-semibold">
-                Payments This Month
+                Settled Transactions
               </span>
               <div className="p-1.5 rounded-lg bg-surface-container-high text-primary">
                 <CheckCircle2 size={18} />
@@ -452,467 +490,253 @@ export function PaymentsPage() {
             </div>
             <div className="my-space-md">
               <span className="font-mono-data-lg text-mono-data-lg text-on-surface text-2xl font-bold tracking-tight">
-                {formatINR(totalReceived)}
+                {rawPayments.filter((p: any) => p.status === "completed").length} Txns
               </span>
             </div>
             <div className="flex items-center gap-space-xs text-xs">
               <span className="font-mono-data-sm text-mono-data-sm text-on-surface font-medium">
-                {mockPayments.filter((p) => p.status === "completed").length}
-              </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">
-                successful captures
+                100% Reconciliation
               </span>
             </div>
           </div>
 
-          {/* Card 3: Pending / In Settlement */}
+          {/* Card 3: In Flight */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/20">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant text-[11px] font-semibold">
-                Pending / In Settlement
+                In-Flight / Pending
               </span>
-              <div className="p-1.5 rounded-lg bg-surface-container-high text-tertiary">
+              <div className="p-1.5 rounded-lg bg-surface-container-high text-amber-600">
                 <Clock size={18} />
               </div>
             </div>
             <div className="my-space-md">
-              <span className="font-mono-data-lg text-mono-data-lg text-on-surface text-2xl font-bold tracking-tight">
+              <span className="font-mono-data-lg text-mono-data-lg text-amber-600 text-2xl font-bold tracking-tight">
                 {formatINR(pendingAmount)}
               </span>
             </div>
             <div className="flex items-center gap-space-xs text-xs">
-              <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
-              <span className="font-body-sm text-body-sm text-on-surface-variant">
-                Settlement within T+1 days
+              <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant">
+                Standard clearance: 24h
               </span>
             </div>
           </div>
 
-          {/* Card 4: Failed Payments */}
+          {/* Card 4: Failed or Exceptions */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/20">
             <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant text-[11px] font-semibold">
-                Failed Payments
+              <span className="font-label-sm text-label-sm uppercase tracking-wider text-error text-[11px] font-semibold">
+                Exceptions &amp; Refunds
               </span>
               <div className="p-1.5 rounded-lg bg-error-container text-error">
                 <AlertTriangle size={18} />
               </div>
             </div>
-            <div className="my-space-md flex items-baseline gap-2">
-              <span className="font-mono-data-lg text-mono-data-lg text-error text-2xl font-bold">
+            <div className="my-space-md">
+              <span className="font-mono-data-lg text-mono-data-lg text-error text-2xl font-bold tracking-tight">
                 {failedOrRefunded.length}
               </span>
-              <span className="font-mono-data-md text-mono-data-md text-on-surface-variant text-sm">
-                ({formatINR(failedAmount)})
-              </span>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-body-sm text-body-sm text-on-surface-variant">
-                97.2% first-pass rate
-              </span>
-              <span className="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-medium text-[10px]">
-                Dunning active
-              </span>
+            <div className="flex items-center gap-space-xs text-xs text-error font-medium">
+              <span>Automatic dunning active</span>
             </div>
           </div>
         </div>
 
-        {/* Main Multi-Tier Interface: Table + Detail Inspector */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
-          {/* Left Column: Data Grid & Filters (Spans 8 cols) */}
-          <div className="xl:col-span-8 flex flex-col space-y-space-md">
-            {/* Multi-tier Tab Selectors */}
-            <div className="flex flex-col space-y-space-xs bg-surface-container-lowest p-space-sm rounded-xl shadow-sm border border-surface-container-high/30">
-              {/* Gateway Channels Tabs */}
-              <div className="flex items-center gap-space-xs overflow-x-auto pb-1 text-xs">
-                {[
-                  { id: "all", label: `All Gateways (${mockPayments.length})` },
-                  {
-                    id: "razorpay",
-                    label: `Razorpay (${mockPayments.filter((p) => p.method === "razorpay").length})`,
-                  },
-                  {
-                    id: "stripe",
-                    label: `Stripe (${mockPayments.filter((p) => p.method === "stripe").length})`,
-                  },
-                  {
-                    id: "bank_transfer",
-                    label: `Bank Transfer (${mockPayments.filter((p) => p.method === "bank_transfer").length})`,
-                  },
-                  {
-                    id: "manual_entry",
-                    label: `Manual Entry (${mockPayments.filter((p) => p.method === "manual_entry").length})`,
-                  },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setGatewayFilter(tab.id)}
-                    className={`px-3 py-1.5 rounded-lg font-label-md text-label-md whitespace-nowrap transition-colors ${
-                      gatewayFilter === tab.id
-                        ? "bg-primary-container text-on-primary shadow-sm font-semibold"
-                        : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Status Filters (Pills) */}
-              <div className="flex items-center justify-between pt-space-xs border-t border-surface-container-high/20 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant pl-1 mr-1 text-[11px] font-semibold">
-                    Status:
-                  </span>
-                  {[
-                    { id: "all", label: "All" },
-                    { id: "successful", label: "Successful" },
-                    { id: "processing", label: "Processing" },
-                    { id: "refunded", label: "Refunded" },
-                    { id: "failed", label: "Failed" },
-                  ].map((statusTab) => (
-                    <button
-                      key={statusTab.id}
-                      onClick={() => setStatusFilter(statusTab.id)}
-                      className={`px-2.5 py-1 rounded font-label-md text-label-md transition-colors ${
-                        statusFilter === statusTab.id
-                          ? "bg-surface-container text-on-surface font-semibold"
-                          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-                      }`}
-                    >
-                      {statusTab.label}
-                    </button>
-                  ))}
-                </div>
-                <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant pr-1 hidden sm:inline text-xs">
-                  Showing {filteredPayments.length} of {mockPayments.length} items
-                </span>
-              </div>
-            </div>
-
-            {/* Reusable DataTable Component */}
+        {/* Dual Pane Layout: Main Transaction Table + Deep Inspector */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
+          {/* Main Table Column */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col space-y-space-md">
             <DataTable
               columns={columns}
               data={filteredPayments}
-              keyExtractor={(p) => p.id}
+              pageSize={8}
+              onRowClick={(row) => setSelectedPayment(row)}
               selectedIds={selectedPayment ? [selectedPayment.id] : []}
-              onRowClick={(p) => setSelectedPayment(p)}
-              pageSize={10}
             />
-
-            {/* Quick Micro Telemetry Strip: Dunning Pipeline */}
-            <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col sm:flex-row items-center justify-between gap-space-md border border-surface-container-high/30">
-              <div className="flex items-center gap-space-md">
-                <div className="p-2.5 rounded-lg bg-surface-container-high text-primary">
-                  <RefreshCw size={20} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-headline-sm text-headline-sm text-on-surface font-semibold text-sm">
-                    Smart Dunning Engine (v2)
-                  </span>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                    Automated retry logic scheduled for failing mandate webhooks across active banking nodes.
-                  </span>
-                </div>
-              </div>
-              <button
-                className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-surface text-on-surface hover:bg-surface-container font-label-md text-label-md transition-colors text-xs font-semibold border border-surface-container-high/20"
-                type="button"
-              >
-                Configure Rules
-              </button>
-            </div>
           </div>
 
-          {/* Right Column: Interactive Payment Detail Inspector (Spans 4 cols) */}
-          <div className="xl:col-span-4 flex flex-col space-y-space-md">
+          {/* Right Inspector: Transaction Details */}
+          <div className="lg:col-span-5 xl:col-span-4 bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-surface-container sticky top-20 space-y-4">
+            <div className="flex items-center justify-between border-b border-surface-container pb-3">
+              <div className="flex items-center gap-2">
+                <Receipt size={18} className="text-primary" />
+                <span className="font-semibold text-sm text-on-surface">Payment Audit</span>
+              </div>
+              <span className="font-mono text-xs font-semibold text-on-surface">
+                {selectedPayment?.payment_number || "PAY-XXXX"}
+              </span>
+            </div>
+
             {selectedPayment ? (
-              <div className="rounded-xl bg-surface-container-lowest shadow-sm p-space-lg flex flex-col space-y-space-lg relative overflow-hidden border border-surface-container-high/30">
-                {/* Header & Fast Actions */}
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono-data-md text-mono-data-md font-semibold text-on-surface text-base">
-                        {selectedPayment.payment_number}
-                      </span>
-                      {renderStatusBadge(selectedPayment.status)}
-                    </div>
-                    <span className="font-body-sm text-body-sm text-on-surface-variant mt-0.5 text-xs">
-                      Capture via {selectedPayment.method.toUpperCase()} Protocol
-                    </span>
+              <div className="space-y-4 text-xs">
+                {/* Customer */}
+                <div className="space-y-1">
+                  <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold">Customer</span>
+                  <div className="font-semibold text-on-surface">
+                    {inspectorCustomer?.company_name || inspectorCustomer?.name || "Client"}
                   </div>
+                  <div className="text-on-surface-variant">{inspectorCustomer?.email}</div>
+                </div>
 
-                  {/* Kebab actions dropdown */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setOptionsMenuOpen(!optionsMenuOpen)}
-                      className="p-1.5 rounded-lg bg-surface hover:bg-surface-container text-on-surface-variant transition-colors border border-surface-container-high/20"
-                      type="button"
-                      aria-label="Payment Options"
-                    >
-                      <MoreHorizontal size={18} />
-                    </button>
-
-                    {optionsMenuOpen && (
-                      <div
-                        className="absolute right-0 mt-1 w-44 rounded-lg bg-surface-container-lowest shadow-lg py-1 z-30 font-label-md text-label-md text-on-surface text-xs border border-surface-container-high/40"
-                        onClick={() => setOptionsMenuOpen(false)}
-                      >
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-container transition-colors text-left"
-                        >
-                          <Receipt size={15} className="text-on-surface-variant" />
-                          <span>View Receipt</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-container text-error transition-colors text-left"
-                        >
-                          <RotateCcw size={15} />
-                          <span>Initiate Refund</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-container transition-colors text-left"
-                        >
-                          <Send size={15} className="text-on-surface-variant" />
-                          <span>Resend Webhook</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-container transition-colors text-left"
-                        >
-                          <Download size={15} className="text-on-surface-variant" />
-                          <span>Download PDF</span>
-                        </button>
-                      </div>
-                    )}
+                {/* Amount & Method */}
+                <div className="p-3 rounded-lg bg-surface-container-low border border-surface-container space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Amount Received</span>
+                    <span className="font-mono font-bold text-primary text-sm">{formatINR(grossAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Method</span>
+                    <span className="capitalize font-medium">{selectedPayment.method?.replace("_", " ")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Reference / UTR</span>
+                    <span className="font-mono text-on-surface">{selectedPayment.reference || "—"}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-surface-container">
+                    <span className="text-on-surface-variant">Status</span>
+                    {renderStatusBadge(selectedPayment.status)}
                   </div>
                 </div>
 
-                {/* Big Amount Display */}
-                <div className="p-space-md rounded-xl bg-surface-container-low flex flex-col space-y-space-sm border border-surface-container-high/20">
-                  <div className="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider text-[11px]">
-                    <span>Settlement Amount</span>
-                    <span className="font-mono-data-sm text-mono-data-sm text-on-surface font-semibold">
-                      INR (₹)
+                {/* Associated Invoice */}
+                {inspectorInvoice && (
+                  <div className="p-3 rounded-lg bg-surface-container-low border border-surface-container space-y-1">
+                    <span className="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold block">
+                      Settled Against Invoice
                     </span>
-                  </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-mono-data-lg text-mono-data-lg text-on-surface font-bold text-2xl">
-                      {formatINR(grossAmount)}
-                    </span>
-                    <span className="font-label-sm text-label-sm text-secondary font-medium text-xs">
-                      {selectedPayment.status === "completed" ? "Settled Payout" : "Pending Capture"}
-                    </span>
-                  </div>
-                  <div className="pt-2 flex items-center justify-between text-body-sm font-body-sm text-on-surface-variant text-xs border-t border-surface-container-high/30">
-                    <span className="truncate max-w-[170px]">
-                      Customer: {inspectorCustomer?.company_name || inspectorCustomer?.name || "Client"}
-                    </span>
-                    <span className="font-mono-data-sm text-mono-data-sm text-on-surface font-semibold">
-                      {inspectorInvoice?.invoice_number || "INV-N/A"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Settlement Financial Breakdown */}
-                <div className="flex flex-col space-y-space-xs text-xs">
-                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold text-[11px]">
-                    Fee &amp; Ledger Audit
-                  </span>
-                  <div className="space-y-2 py-1 font-body-sm text-body-sm">
-                    <div className="flex justify-between items-center text-on-surface">
-                      <span>Gross Invoice Amount</span>
-                      <span className="font-mono-data-sm text-mono-data-sm font-semibold">
-                        {formatINR(grossAmount)}
-                      </span>
+                    <div className="font-mono font-semibold text-primary">
+                      {inspectorInvoice.invoice_number}
                     </div>
-                    <div className="flex justify-between items-center text-on-surface-variant">
-                      <span>Payment Gateway Fee (2.00%)</span>
-                      <span className="font-mono-data-sm text-mono-data-sm text-error">
-                        - {formatINR(gatewayFee)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-on-surface-variant">
-                      <span>GST on Gateway Fee (18%)</span>
-                      <span className="font-mono-data-sm text-mono-data-sm text-error">
-                        - {formatINR(gstOnFee)}
-                      </span>
-                    </div>
-                    <div className="h-0.5 bg-surface-container rounded-full my-1" />
-                    <div className="flex justify-between items-center text-on-surface font-semibold">
-                      <span>Net Credited to Virtual Escrow</span>
-                      <span className="font-mono-data-sm text-mono-data-sm text-secondary font-bold">
-                        {formatINR(netEscrow)}
-                      </span>
+                    <div className="flex justify-between text-on-surface-variant text-[11px]">
+                      <span>Invoice Total: {formatINR(inspectorInvoice.total_amount)}</span>
+                      <span>Remaining Balance: {formatINR(inspectorInvoice.outstanding_balance)}</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Transaction Execution Timeline */}
-                <div className="flex flex-col space-y-space-sm text-xs">
-                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold text-[11px]">
-                    Lifecycle Telemetry
-                  </span>
-                  <div className="relative pl-6 space-y-4">
-                    <div className="absolute left-2.5 top-2 bottom-2 w-0.5 bg-surface-container-high" />
-
-                    <div className="relative flex flex-col">
-                      <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface-container-lowest" />
-                      <div className="flex items-center justify-between">
-                        <span className="font-label-md text-label-md text-on-surface font-semibold">
-                          Mandate Trigger Initiated
-                        </span>
-                        <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant text-[11px]">
-                          14:32:01
-                        </span>
-                      </div>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
-                        Debit dispatch received by gateway engine
-                      </span>
-                    </div>
-
-                    <div className="relative flex flex-col">
-                      <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface-container-lowest" />
-                      <div className="flex items-center justify-between">
-                        <span className="font-label-md text-label-md text-on-surface font-semibold">
-                          Authorized by Clearing House
-                        </span>
-                        <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant text-[11px]">
-                          14:32:04
-                        </span>
-                      </div>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
-                        Pre-approved token verified successfully
-                      </span>
-                    </div>
-
-                    <div className="relative flex flex-col">
-                      <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface-container-lowest" />
-                      <div className="flex items-center justify-between">
-                        <span className="font-label-md text-label-md text-on-surface font-semibold">
-                          Payment Captured
-                        </span>
-                        <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant text-[11px]">
-                          14:32:07
-                        </span>
-                      </div>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
-                        Gateway confirmation received (Ref: {selectedPayment.reference || "N/A"})
-                      </span>
-                    </div>
-
-                    <div className="relative flex flex-col">
-                      <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-secondary ring-4 ring-surface-container-lowest" />
-                      <div className="flex items-center justify-between">
-                        <span className="font-label-md text-label-md text-secondary font-semibold">
-                          Reconciled in Ledger
-                        </span>
-                        <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant text-[11px]">
-                          14:32:10
-                        </span>
-                      </div>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
-                        Matched with {inspectorInvoice?.invoice_number || "Invoice"}. Ledger updated.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gateway Raw Payload Log Snippet */}
-                <div className="flex flex-col space-y-space-xs text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold text-[11px]">
-                      Webhook Payload Snippet
-                    </span>
-                    <button
-                      className="font-mono-data-sm text-mono-data-sm text-primary hover:underline flex items-center gap-1 text-xs"
-                      onClick={handleCopyWebhook}
-                      type="button"
-                    >
-                      {copiedWebhook ? (
-                        <>
-                          <Check size={12} className="text-emerald-600" />
-                          <span className="text-emerald-600 font-semibold">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={12} />
-                          <span>Copy JSON</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <div className="p-space-sm rounded-lg bg-inverse-surface text-inverse-on-surface font-mono-data-sm text-mono-data-sm overflow-x-auto text-[11px] leading-tight border border-white/10 max-h-44">
-                    <pre className="m-0">
-{JSON.stringify(
-  {
-    entity: "event",
-    event:
-      selectedPayment.status === "completed"
-        ? "payment.captured"
-        : selectedPayment.status === "refunded"
-        ? "payment.refunded"
-        : "payment.pending",
-    contains: ["payment"],
-    payload: {
-      payment: {
-        entity: {
-          id: selectedPayment.reference || selectedPayment.payment_number,
-          amount: Math.round(selectedPayment.amount * 100),
-          currency: "INR",
-          status: selectedPayment.status,
-          method: selectedPayment.method,
-          customer_id: selectedPayment.customer_id,
-          invoice_id: selectedPayment.invoice_id,
-        },
-      },
-    },
-  },
-  null,
-  2
-)}
-                    </pre>
-                  </div>
-                </div>
-
-                {/* Footer Action Buttons in Inspector */}
-                <div className="pt-space-xs flex items-center gap-space-sm text-xs">
-                  <button
-                    className="flex-1 py-2 px-3 rounded-lg bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors font-label-md text-label-md flex items-center justify-center gap-1.5 font-medium border border-surface-container-high/30"
-                    type="button"
-                  >
-                    <Receipt size={15} />
-                    <span>View Receipt</span>
-                  </button>
-                  <button
-                    className="py-2 px-3 rounded-lg bg-surface-container text-error hover:bg-error-container transition-colors font-label-md text-label-md flex items-center justify-center gap-1.5 font-medium border border-surface-container-high/30"
-                    type="button"
-                  >
-                    <RotateCcw size={15} />
-                    <span>Refund</span>
-                  </button>
-                </div>
+                )}
               </div>
             ) : (
-              <div className="rounded-xl bg-surface-container-lowest shadow-sm p-8 text-center text-on-surface-variant border border-surface-container-high/30">
-                <Receipt size={32} className="mx-auto mb-2 opacity-40" />
-                <p className="font-label-md text-sm font-semibold text-on-surface">
-                  No Payment Selected
-                </p>
-                <p className="font-body-sm text-xs mt-1">
-                  Click on any payment row in the table to inspect details.
-                </p>
-              </div>
+              <p className="text-xs text-on-surface-variant italic">Select a payment to inspect.</p>
             )}
           </div>
         </div>
       </div>
+
+      {/* Record Payment Modal */}
+      {isRecordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-surface-container-lowest border border-surface-container rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-surface-container pb-3">
+              <h2 className="text-base font-bold text-on-surface">Record Offline Payment</h2>
+              <button
+                type="button"
+                onClick={() => setIsRecordModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-on-surface-variant font-medium mb-1">
+                  Target Invoice (Outstanding)
+                </label>
+                {unpaidInvoices.length > 0 ? (
+                  <select
+                    value={targetInvoiceId}
+                    onChange={(e) => handleSelectInvoice(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-surface-container rounded-lg bg-surface text-on-surface text-xs"
+                  >
+                    {unpaidInvoices.map((inv) => (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.invoice_number} — {inv.customer?.company_name || inv.customer?.name || "Client"} (Due: ₹{inv.outstanding_balance})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="Enter Invoice UUID"
+                    value={targetInvoiceId}
+                    onChange={(e) => setTargetInvoiceId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-surface-container rounded-lg bg-surface text-on-surface font-mono text-xs"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block text-on-surface-variant font-medium mb-1">
+                  Payment Amount (INR)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-on-surface-variant font-semibold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    required
+                    className="w-full pl-7 pr-3 py-2 border border-surface-container rounded-lg bg-surface text-on-surface font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-on-surface-variant font-medium mb-1">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 border border-surface-container rounded-lg bg-surface text-on-surface capitalize text-xs"
+                >
+                  <option value="manual_entry">Manual Entry / Cash</option>
+                  <option value="bank_transfer">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                  <option value="stripe">Stripe (Simulated)</option>
+                  <option value="razorpay">Razorpay (Simulated)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-on-surface-variant font-medium mb-1">
+                  Transaction Reference / UTR
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. HDFC-NEFT-9281920"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  className="w-full px-3 py-2 border border-surface-container rounded-lg bg-surface text-on-surface font-mono text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-surface-container">
+                <button
+                  type="button"
+                  onClick={() => setIsRecordModalOpen(false)}
+                  disabled={isSubmitting}
+                  className="px-3.5 py-1.5 border border-surface-container rounded-lg font-medium hover:bg-surface-container"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition"
+                >
+                  {isSubmitting ? "Recording..." : "Save Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
 export default PaymentsPage;
-

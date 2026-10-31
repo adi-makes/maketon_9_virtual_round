@@ -37,10 +37,13 @@ import {
 } from "@/lib/mock-data";
 import { RevenueTrendChart } from "@/components/charts/RevenueTrendChart";
 import { SubscriptionGrowthChart } from "@/components/charts/SubscriptionGrowthChart";
+import { runBillingCycleAction } from "@/actions/invoices";
 
 export function DashboardPage() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRunningBilling, setIsRunningBilling] = useState(false);
+  const [billingMessage, setBillingMessage] = useState<string | null>(null);
   const [selectedMetricView, setSelectedMetricView] = useState<"revenue" | "mrr" | "collected">("revenue");
   const [timeframe, setTimeframe] = useState<"monthly" | "quarterly">("monthly");
 
@@ -205,9 +208,60 @@ export function DashboardPage() {
                     <BarChart3 size={16} className="text-primary" />
                     <span>Export Summary</span>
                   </Link>
+                  <button
+                    onClick={async () => {
+                      setIsRunningBilling(true);
+                      setBillingMessage(null);
+                      try {
+                        const res = await runBillingCycleAction();
+                        if (res.success && res.data) {
+                          setBillingMessage(res.message || "Billing run completed.");
+                        } else {
+                          setBillingMessage(res.error || "Billing run failed.");
+                        }
+                      } catch (e: unknown) {
+                        const msg = e instanceof Error ? e.message : "Billing run failed.";
+                        setBillingMessage(msg);
+                      } finally {
+                        setIsRunningBilling(false);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs text-left"
+                    type="button"
+                  >
+                    <RefreshCw size={16} className="text-emerald-600" />
+                    <span>Run Billing Cycle</span>
+                  </button>
                 </div>
               )}
             </div>
+
+            {/* Run Billing Cycle Direct CTA */}
+            <button
+              onClick={async () => {
+                setIsRunningBilling(true);
+                setBillingMessage(null);
+                try {
+                  const res = await runBillingCycleAction();
+                  if (res.success && res.data) {
+                    setBillingMessage(res.message || "Billing run completed.");
+                  } else {
+                    setBillingMessage(res.error || "Billing run failed.");
+                  }
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : "Billing run failed.";
+                  setBillingMessage(msg);
+                } finally {
+                  setIsRunningBilling(false);
+                }
+              }}
+              disabled={isRunningBilling}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-label-md text-label-md shadow-sm transition-all text-xs font-semibold disabled:opacity-50"
+              type="button"
+            >
+              <RefreshCw size={14} className={isRunningBilling ? "animate-spin" : ""} />
+              <span>{isRunningBilling ? "Billing..." : "Run Billing"}</span>
+            </button>
 
             {/* Create Subscription CTA */}
             <Link
