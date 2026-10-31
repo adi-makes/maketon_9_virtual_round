@@ -29,4 +29,5 @@ Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
+.kilo/
 .env.local
