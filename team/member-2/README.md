@@ -52,24 +52,24 @@
 
 ## 6. Acceptance Criteria
 
-- [ ] Users can create a product with at least one variant that adjusts price.
-- [ ] Subscriptions transition through valid state machine paths (`draft` &rarr; `quotation` &rarr; `confirmed` &rarr; `active`).
-- [ ] Invalid state transitions (e.g. `closed` &rarr; `active`) throw a descriptive user-facing error.
-- [ ] Activating a subscription sets the initial `current_period_start` and `next_billing_date`.
+- [x] Users can create a product with at least one variant that adjusts price.
+- [x] Subscriptions transition through valid state machine paths (`draft` &rarr; `quotation` &rarr; `confirmed` &rarr; `active`).
+- [x] Invalid state transitions (e.g. `closed` &rarr; `active`) throw a descriptive user-facing error.
+- [x] Activating a subscription sets the initial `current_period_start` and `next_billing_date`.
 
 ---
 
 ## 7. Integration Checklist
 
-- [ ] Verify `src/actions/subscriptions.ts` updates Supabase without breaking constraints.
-- [ ] Ensure subscription total price properly factors in `base_price + price_adjustment`.
+- [x] Verify `src/actions/subscriptions.ts` updates Supabase without breaking constraints.
+- [x] Ensure subscription total price properly factors in `base_price + price_adjustment`.
 
 ---
 
 ## 8. Testing Checklist
 
-- [ ] Test status transitions using the UI buttons on `/subscriptions/[id]`.
-- [ ] Run `npm run typecheck` to verify all parameters match `SubscriptionStatus`.
+- [x] Test status transitions using the UI buttons on `/subscriptions/[id]`.
+- [x] Run `npm run typecheck` to verify all parameters match `SubscriptionStatus`.
 
 ---
 
