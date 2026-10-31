@@ -14,6 +14,19 @@ import {
   validatePlanAvailability,
   checkPlanPermission,
 } from "@/lib/plans/config";
+import {
+  formatSubscriptionDisplay,
+  type SubscriptionDisplayItem,
+  type SubscriptionLineItem,
+  type SubscriptionInvoiceRecord,
+} from "@/lib/subscriptions/display";
+
+export { formatSubscriptionDisplay };
+export type {
+  SubscriptionDisplayItem,
+  SubscriptionLineItem,
+  SubscriptionInvoiceRecord,
+};
 
 function safeRevalidate(path: string) {
   try {
@@ -127,6 +140,7 @@ export async function transitionSubscriptionStatus(
 
     safeRevalidate("/subscriptions");
     safeRevalidate(`/subscriptions/${subId}`);
+    safeRevalidate("/dashboard");
     return { success: true, message: `Status updated to ${nextStatus}.` };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -176,6 +190,7 @@ export async function toggleCancelAtPeriodEnd(
 
     safeRevalidate("/subscriptions");
     safeRevalidate(`/subscriptions/${subId}`);
+    safeRevalidate("/dashboard");
     return {
       success: true,
       message: cancelAtPeriodEnd
@@ -289,6 +304,7 @@ export async function createSubscription(
     }
 
     safeRevalidate("/subscriptions");
+    safeRevalidate("/dashboard");
     return {
       success: true,
       message: "Subscription created successfully.",
@@ -347,6 +363,7 @@ export async function autoCloseExpiredSubscriptionsAction(): Promise<
 
     if (closedIds.length > 0) {
       safeRevalidate("/subscriptions");
+    safeRevalidate("/dashboard");
     }
 
     return {
@@ -354,6 +371,84 @@ export async function autoCloseExpiredSubscriptionsAction(): Promise<
       message: `Processed expired subscriptions. Closed ${closedIds.length} subscription(s).`,
       data: { closedCount: closedIds.length, closedIds },
     };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Fetches all subscription records with relational joins from Supabase.
+ */
+export async function getSubscriptions(): Promise<ActionResponse<SubscriptionDisplayItem[]>> {
+  try {
+    const supabase = await createClient();
+
+    const { data: rawSubs, error } = await supabase
+      .from("subscriptions")
+      .select(`
+        id,
+        customer_id,
+        plan_id,
+        status,
+        start_date,
+        current_period_start,
+        current_period_end,
+        next_billing_date,
+        cancel_at_period_end,
+        created_at,
+        updated_at,
+        customer:customers (
+          id,
+          name,
+          email,
+          company_name,
+          phone,
+          billing_address
+        ),
+        plan:plans (
+          id,
+          name,
+          billing_frequency,
+          interval_count,
+          minimum_quantity,
+          is_active,
+          product:products (
+            id,
+            name,
+            base_price,
+            description
+          )
+        ),
+        items:subscription_items (
+          id,
+          quantity,
+          unit_price,
+          variant:product_variants (
+            id,
+            name,
+            price_adjustment,
+            sku
+          )
+        ),
+        invoices:invoices (
+          id,
+          invoice_number,
+          status,
+          due_date,
+          total_amount,
+          paid_amount,
+          created_at
+        )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const items = (rawSubs || []).map(formatSubscriptionDisplay);
+    return { success: true, data: items };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return { success: false, error: message };

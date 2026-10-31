@@ -81,6 +81,8 @@ export function toRupees(paise: number): number {
   return Math.round(paise) / 100;
 }
 
+export const fromPaise = toRupees;
+
 /**
  * Validates a monetary quantity and unit price.
  */

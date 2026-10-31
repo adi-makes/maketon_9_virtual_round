@@ -94,10 +94,15 @@ export async function runBillingCycle(): Promise<BillingRunResult> {
 
       // Compute period end
       const periodEnd = new Date(periodStart.getTime());
+      const count = Math.max(1, intervalCount);
       if (frequency === "yearly") {
-        periodEnd.setFullYear(periodEnd.getFullYear() + Math.max(1, intervalCount));
+        periodEnd.setFullYear(periodEnd.getFullYear() + count);
+      } else if (frequency === "weekly") {
+        periodEnd.setDate(periodEnd.getDate() + count * 7);
+      } else if (frequency === "daily") {
+        periodEnd.setDate(periodEnd.getDate() + count);
       } else {
-        periodEnd.setMonth(periodEnd.getMonth() + Math.max(1, intervalCount));
+        periodEnd.setMonth(periodEnd.getMonth() + count);
       }
 
       const periodStartIso = periodStart.toISOString();

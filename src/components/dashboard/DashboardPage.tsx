@@ -25,21 +25,20 @@ import {
   CheckCircle2,
   Clock3,
   RotateCcw,
+  X,
 } from "lucide-react";
-import {
-  mockCustomers,
-  mockSubscriptions,
-  mockSubscriptionItems,
-  mockInvoices,
-  mockPayments,
-  mockPlans,
-  mockRevenueStats,
-} from "@/lib/mock-data";
+import type { DashboardMetrics } from "@/lib/billing/dashboard-service";
+import { fetchDashboardMetricsAction } from "@/actions/dashboard";
 import { RevenueTrendChart } from "@/components/charts/RevenueTrendChart";
 import { SubscriptionGrowthChart } from "@/components/charts/SubscriptionGrowthChart";
 import { runBillingCycleAction } from "@/actions/invoices";
 
-export function DashboardPage() {
+export interface DashboardPageProps {
+  initialMetrics?: DashboardMetrics;
+}
+
+export function DashboardPage({ initialMetrics }: DashboardPageProps = {}) {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(initialMetrics || null);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRunningBilling, setIsRunningBilling] = useState(false);
@@ -47,46 +46,66 @@ export function DashboardPage() {
   const [selectedMetricView, setSelectedMetricView] = useState<"revenue" | "mrr" | "collected">("revenue");
   const [timeframe, setTimeframe] = useState<"monthly" | "quarterly">("monthly");
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    try {
+      const res = await fetchDashboardMetricsAction();
+      if (res.success && res.data) {
+        setMetrics(res.data);
+      }
+    } finally {
       setIsRefreshing(false);
-    }, 600);
+    }
   };
 
-  // ─── Dynamic Aggregations from mockData ─────────────────────────────────────
-  const totalRevenue = mockPayments
-    .filter((p) => p.status === "completed")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const handleRunBilling = async () => {
+    setIsRunningBilling(true);
+    setBillingMessage(null);
+    try {
+      const res = await runBillingCycleAction();
+      if (res.success && res.data) {
+        setBillingMessage(res.message || "Billing run completed successfully.");
+        // Immediately fetch updated metrics to reflect new invoices & balances
+        const fresh = await fetchDashboardMetricsAction();
+        if (fresh.success && fresh.data) {
+          setMetrics(fresh.data);
+        }
+      } else {
+        setBillingMessage(res.error || "Billing run failed.");
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Billing run failed.";
+      setBillingMessage(msg);
+    } finally {
+      setIsRunningBilling(false);
+    }
+  };
 
-  const latestMRR = mockRevenueStats[mockRevenueStats.length - 1]?.mrr ?? 1655.5;
+  // ─── Live Aggregations from authoritative metrics ───────────────────────────
+  const totalRevenue = metrics?.totalRevenue ?? 0;
+  const grossCollected = metrics?.grossCollected ?? 0;
+  const invoicedRevenue = metrics?.invoicedRevenue ?? 0;
+  const latestMRR = metrics?.mrr ?? 0;
 
-  const activeSubscriptionsCount = mockSubscriptions.filter(
-    (s) => s.status === "active"
-  ).length;
+  const activeSubscriptionsCount = metrics?.activeSubscriptionsCount ?? 0;
+  const totalCustomersCount = metrics?.totalCustomersCount ?? 0;
+  const outstandingBalance = metrics?.outstandingReceivables ?? 0;
+  const overdueInvoicesCount = metrics?.overdueInvoicesCount ?? 0;
 
-  const totalCustomersCount = mockCustomers.length;
+  const totalSubsCount = metrics?.totalSubscriptionsCount ?? 0;
+  const activeSubs = metrics?.subscriptionDistribution?.active ?? 0;
+  const confirmedSubs = metrics?.subscriptionDistribution?.confirmed ?? 0;
+  const pausedSubs = metrics?.subscriptionDistribution?.paused ?? 0;
+  const otherSubs = metrics?.subscriptionDistribution?.other ?? 0;
 
-  const outstandingBalance = mockInvoices.reduce(
-    (sum, inv) => sum + inv.outstanding_balance,
-    0
-  );
+  const activePercent = metrics?.subscriptionDistribution?.activePercent ?? 0;
+  const confirmedPercent = metrics?.subscriptionDistribution?.confirmedPercent ?? 0;
+  const pausedPercent = metrics?.subscriptionDistribution?.pausedPercent ?? 0;
+  const otherPercent = metrics?.subscriptionDistribution?.otherPercent ?? 0;
 
-  const overdueInvoicesCount = mockInvoices.filter(
-    (inv) => inv.outstanding_balance > 0 && inv.status !== "paid" && inv.status !== "cancelled"
-  ).length;
-
-  // Plan Distribution breakdown
-  const totalSubsCount = mockSubscriptions.length || 1;
-  const activeSubs = mockSubscriptions.filter((s) => s.status === "active").length;
-  const confirmedSubs = mockSubscriptions.filter((s) => s.status === "confirmed").length;
-  const pausedSubs = mockSubscriptions.filter((s) => s.status === "paused").length;
-  const otherSubs = mockSubscriptions.filter((s) => s.status === "draft" || s.status === "closed").length;
-
-  const activePercent = Math.round((activeSubs / totalSubsCount) * 100);
-  const confirmedPercent = Math.round((confirmedSubs / totalSubsCount) * 100);
-  const pausedPercent = Math.round((pausedSubs / totalSubsCount) * 100);
-  const otherPercent = Math.max(0, 100 - activePercent - confirmedPercent - pausedPercent);
+  const recentSubscriptions = metrics?.recentSubscriptions ?? [];
+  const recentSettlements = metrics?.recentSettlements ?? [];
+  const timeSeriesStats = metrics?.timeSeriesStats ?? [];
 
   // Helper currency formatter (INR format)
   const formatINR = (val: number) => {
@@ -107,15 +126,6 @@ export function DashboardPage() {
     });
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-  };
-
   return (
     <main className="w-full pt-16 flex-1 px-gutter-md py-space-lg bg-surface min-h-screen">
       <div className="flex flex-col w-full space-y-space-lg">
@@ -125,27 +135,21 @@ export function DashboardPage() {
             <div className="flex items-center gap-space-xs font-mono-data-sm text-mono-data-sm text-on-surface-variant uppercase tracking-wider text-xs">
               <span>Portfolio Analytics</span>
               <span>/</span>
-              <span className="text-primary font-medium">Real-time Stream</span>
+              <span className="text-primary font-medium">Real-time Telemetry</span>
             </div>
             <h1 className="font-headline-xl text-headline-xl text-on-surface tracking-tight font-semibold text-2xl lg:text-3xl">
               Dashboard
             </h1>
             <p className="font-body-md text-body-md text-on-surface-variant text-sm">
-              Monitor your subscription business and financial performance across active cohorts.
+              Authoritative revenue, subscription lifecycle, and billing telemetry from live Supabase ledger.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-space-sm">
-            {/* Date Range Selector */}
-            <div className="flex items-center bg-surface-container-lowest px-3 py-1.5 rounded-lg shadow-sm border border-surface-container-high/30">
-              <Calendar size={18} className="text-on-surface-variant mr-2" />
-              <span className="font-label-md text-label-md text-on-surface font-medium text-xs">
-                Oct 1 - Oct 31, 2024
-              </span>
-              <span className="mx-2 text-outline-variant font-mono-data-sm text-xs">|</span>
-              <span className="font-mono-data-sm text-mono-data-sm text-primary font-semibold text-xs">
-                Last 30 Days
-              </span>
+            {/* Live Data Badge */}
+            <div className="flex items-center bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-emerald-800 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+              <span>Live Database</span>
             </div>
 
             {/* Currency Pill */}
@@ -166,7 +170,7 @@ export function DashboardPage() {
               <RefreshCw
                 size={18}
                 className={`transition-transform duration-500 ease-in-out ${
-                  isRefreshing ? "rotate-180 text-primary" : ""
+                  isRefreshing ? "rotate-180 text-primary animate-spin" : ""
                 }`}
               />
             </button>
@@ -188,44 +192,28 @@ export function DashboardPage() {
                   onClick={() => setQuickActionsOpen(false)}
                 >
                   <Link
-                    href="/customers/new"
+                    href="/customers"
                     className="flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs"
                   >
                     <UserPlus size={16} className="text-primary" />
-                    <span>Add Customer</span>
+                    <span>View Customers</span>
                   </Link>
                   <Link
-                    href="/invoices/new"
+                    href="/invoices"
                     className="flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs"
                   >
                     <Receipt size={16} className="text-primary" />
-                    <span>Create Invoice</span>
+                    <span>Manage Invoices</span>
                   </Link>
                   <Link
-                    href="/reports"
+                    href="/payments"
                     className="flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs"
                   >
-                    <BarChart3 size={16} className="text-primary" />
-                    <span>Export Summary</span>
+                    <Wallet size={16} className="text-primary" />
+                    <span>Manage Payments</span>
                   </Link>
                   <button
-                    onClick={async () => {
-                      setIsRunningBilling(true);
-                      setBillingMessage(null);
-                      try {
-                        const res = await runBillingCycleAction();
-                        if (res.success && res.data) {
-                          setBillingMessage(res.message || "Billing run completed.");
-                        } else {
-                          setBillingMessage(res.error || "Billing run failed.");
-                        }
-                      } catch (e: unknown) {
-                        const msg = e instanceof Error ? e.message : "Billing run failed.";
-                        setBillingMessage(msg);
-                      } finally {
-                        setIsRunningBilling(false);
-                      }
-                    }}
+                    onClick={handleRunBilling}
                     className="w-full flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs text-left"
                     type="button"
                   >
@@ -238,29 +226,13 @@ export function DashboardPage() {
 
             {/* Run Billing Cycle Direct CTA */}
             <button
-              onClick={async () => {
-                setIsRunningBilling(true);
-                setBillingMessage(null);
-                try {
-                  const res = await runBillingCycleAction();
-                  if (res.success && res.data) {
-                    setBillingMessage(res.message || "Billing run completed.");
-                  } else {
-                    setBillingMessage(res.error || "Billing run failed.");
-                  }
-                } catch (e: unknown) {
-                  const msg = e instanceof Error ? e.message : "Billing run failed.";
-                  setBillingMessage(msg);
-                } finally {
-                  setIsRunningBilling(false);
-                }
-              }}
+              onClick={handleRunBilling}
               disabled={isRunningBilling}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-label-md text-label-md shadow-sm transition-all text-xs font-semibold disabled:opacity-50"
               type="button"
             >
               <RefreshCw size={14} className={isRunningBilling ? "animate-spin" : ""} />
-              <span>{isRunningBilling ? "Billing..." : "Run Billing"}</span>
+              <span>{isRunningBilling ? "Running..." : "Run Billing"}</span>
             </button>
 
             {/* Create Subscription CTA */}
@@ -274,10 +246,27 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {/* Action Status Banner */}
+        {billingMessage && (
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium shadow-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+              <span>{billingMessage}</span>
+            </div>
+            <button
+              onClick={() => setBillingMessage(null)}
+              className="text-emerald-600 hover:text-emerald-800 p-1"
+              type="button"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Action Shortcut Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-space-sm">
           <Link
-            href="/customers/new"
+            href="/customers"
             className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
           >
             <div className="flex items-center gap-3">
@@ -286,10 +275,10 @@ export function DashboardPage() {
               </div>
               <div className="flex flex-col">
                 <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  Add Customer
+                  Customers
                 </span>
                 <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Onboard new account
+                  {totalCustomersCount} registered
                 </span>
               </div>
             </div>
@@ -306,10 +295,10 @@ export function DashboardPage() {
               </div>
               <div className="flex flex-col">
                 <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  Create Subscription
+                  New Subscription
                 </span>
                 <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Provision billing cycle
+                  Provision billing contract
                 </span>
               </div>
             </div>
@@ -317,7 +306,7 @@ export function DashboardPage() {
           </Link>
 
           <Link
-            href="/invoices/new"
+            href="/invoices"
             className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
           >
             <div className="flex items-center gap-3">
@@ -326,10 +315,10 @@ export function DashboardPage() {
               </div>
               <div className="flex flex-col">
                 <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  Create Invoice
+                  Invoices
                 </span>
                 <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Ad-hoc or pro-rated
+                  {overdueInvoicesCount > 0 ? `${overdueInvoicesCount} overdue` : "Ledger & balances"}
                 </span>
               </div>
             </div>
@@ -337,19 +326,19 @@ export function DashboardPage() {
           </Link>
 
           <Link
-            href="/reports"
+            href="/payments"
             className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
-                <Activity size={20} />
+                <Wallet size={20} />
               </div>
               <div className="flex flex-col">
                 <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  View Reports
+                  Payments
                 </span>
                 <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Tax, MRR &amp; churn logic
+                  {formatINR(totalRevenue)} settled
                 </span>
               </div>
             </div>
@@ -359,11 +348,11 @@ export function DashboardPage() {
 
         {/* 6 Key Financial Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-space-sm">
-          {/* Card 1: Total Revenue */}
+          {/* Card 1: Total Revenue (Collected Net) */}
           <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow border border-surface-container-high/20">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold text-[11px]">
-                Total Revenue
+                Total Collected
               </span>
               <div className="w-7 h-7 rounded-md bg-surface-container-high flex items-center justify-center text-primary">
                 <Wallet size={16} />
@@ -376,13 +365,12 @@ export function DashboardPage() {
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700">
                   <ArrowUp size={12} className="mr-0.5" />
-                  +14.2%
+                  Net Settled
                 </span>
-                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">vs last month</span>
               </div>
             </div>
             <div className="font-body-sm text-body-sm text-on-surface-variant truncate text-xs">
-              Gross settled ({mockPayments.length} transactions)
+              Gross: {formatINR(grossCollected)}
             </div>
           </div>
 
@@ -403,13 +391,13 @@ export function DashboardPage() {
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700">
                   <ArrowUp size={12} className="mr-0.5" />
-                  +8.6%
+                  Normalized
                 </span>
-                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">vs last month</span>
+                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">active cohort</span>
               </div>
             </div>
             <div className="font-body-sm text-body-sm text-on-surface-variant truncate text-xs">
-              Run-rate: {formatINR(latestMRR * 12)}
+              ARR: {formatINR(latestMRR * 12)}
             </div>
           </div>
 
@@ -429,9 +417,9 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-surface-container-high text-on-surface">
-                  +{mockSubscriptions.length} total
+                  {totalSubsCount} total
                 </span>
-                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">in cohort</span>
+                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">contracts</span>
               </div>
             </div>
             <div className="font-body-sm text-body-sm text-on-surface-variant truncate text-xs">
@@ -456,17 +444,17 @@ export function DashboardPage() {
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700">
                   <ArrowUp size={12} className="mr-0.5" />
-                  +100% net
+                  Registered
                 </span>
-                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">retention</span>
+                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">accounts</span>
               </div>
             </div>
             <div className="font-body-sm text-body-sm text-on-surface-variant truncate text-xs">
-              Across 5 global territories
+              Live database records
             </div>
           </div>
 
-          {/* Card 5: Outstanding Balance */}
+          {/* Card 5: Outstanding Receivables */}
           <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow border border-surface-container-high/20">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold text-[11px]">
@@ -481,15 +469,14 @@ export function DashboardPage() {
                 {formatINR(outstandingBalance)}
               </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700">
-                  <ArrowDown size={12} className="mr-0.5" />
-                  -4.3%
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700">
+                  Unpaid
                 </span>
-                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">vs last month</span>
+                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">receivables</span>
               </div>
             </div>
             <div className="font-body-sm text-body-sm text-on-surface-variant truncate text-xs">
-              Pending in {overdueInvoicesCount} invoices
+              Invoiced: {formatINR(invoicedRevenue)}
             </div>
           </div>
 
@@ -509,9 +496,9 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-error-container text-on-error-container">
-                  Active balance
+                  Past due
                 </span>
-                <span className="font-body-sm text-body-sm text-error text-xs">&gt;0 due</span>
+                <span className="font-body-sm text-body-sm text-error text-xs">&gt;0 balance</span>
               </div>
             </div>
             <div className="font-body-sm text-body-sm text-on-surface-variant truncate text-xs">
@@ -522,7 +509,7 @@ export function DashboardPage() {
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md">
-          {/* Revenue Trajectory & Expansion (8 cols) */}
+          {/* Revenue Trajectory (8 cols) */}
           <div className="lg:col-span-8 bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between border border-surface-container-high/20">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-space-md gap-3">
               <div className="space-y-1">
@@ -531,11 +518,11 @@ export function DashboardPage() {
                     Revenue Trajectory &amp; Expansion
                   </h2>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-data-sm bg-surface-container-high text-primary font-semibold">
-                    AUDITED
+                    LIVE
                   </span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Cumulative recurring billings against targeted annual run rate
+                  Real payment collections and MRR time-series
                 </p>
               </div>
 
@@ -545,53 +532,31 @@ export function DashboardPage() {
                     onClick={() => setSelectedMetricView("revenue")}
                     className={`px-2.5 py-1 rounded-md text-label-sm font-label-md text-xs font-medium transition-all ${
                       selectedMetricView === "revenue"
-                        ? "bg-surface-container-lowest text-primary shadow-sm"
+                        ? "bg-surface-container-lowest text-primary shadow-sm font-semibold"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
-                    Revenue (₹)
+                    Net Revenue
                   </button>
                   <button
                     onClick={() => setSelectedMetricView("mrr")}
                     className={`px-2.5 py-1 rounded-md text-label-sm font-label-md text-xs font-medium transition-all ${
                       selectedMetricView === "mrr"
-                        ? "bg-surface-container-lowest text-primary shadow-sm"
+                        ? "bg-surface-container-lowest text-primary shadow-sm font-semibold"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
-                    MRR (₹)
+                    MRR
                   </button>
                   <button
                     onClick={() => setSelectedMetricView("collected")}
                     className={`px-2.5 py-1 rounded-md text-label-sm font-label-md text-xs font-medium transition-all ${
                       selectedMetricView === "collected"
-                        ? "bg-surface-container-lowest text-primary shadow-sm"
+                        ? "bg-surface-container-lowest text-primary shadow-sm font-semibold"
                         : "text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
                     Collected
-                  </button>
-                </div>
-                <div className="flex rounded-lg bg-surface-container-low p-1">
-                  <button
-                    onClick={() => setTimeframe("monthly")}
-                    className={`px-2 py-1 rounded-md text-label-sm font-label-md text-xs font-medium transition-all ${
-                      timeframe === "monthly"
-                        ? "bg-surface-container-lowest text-on-surface shadow-sm"
-                        : "text-on-surface-variant hover:text-on-surface"
-                    }`}
-                  >
-                    Monthly
-                  </button>
-                  <button
-                    onClick={() => setTimeframe("quarterly")}
-                    className={`px-2 py-1 rounded-md text-label-sm font-label-md text-xs font-medium transition-all ${
-                      timeframe === "quarterly"
-                        ? "bg-surface-container-lowest text-on-surface shadow-sm"
-                        : "text-on-surface-variant hover:text-on-surface"
-                    }`}
-                  >
-                    Quarterly
                   </button>
                 </div>
               </div>
@@ -600,31 +565,27 @@ export function DashboardPage() {
             {/* Recharts Revenue Trend Area Chart */}
             <div className="py-2">
               <RevenueTrendChart
-                data={mockRevenueStats}
+                data={timeSeriesStats}
                 metricKey={selectedMetricView === "revenue" ? "net_revenue" : selectedMetricView}
                 height={288}
               />
             </div>
 
-            {/* Chart Legend & Accuracy */}
+            {/* Chart Legend */}
             <div className="flex flex-wrap items-center justify-between pt-space-sm gap-space-sm font-label-sm text-label-sm text-xs">
               <div className="flex flex-wrap items-center gap-space-md">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-primary" />
-                  <span className="text-on-surface">Net Recurring Revenue</span>
+                  <span className="text-on-surface">Monthly Recurring Revenue (MRR)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-tertiary-container" />
-                  <span className="text-on-surface-variant">Expansion Revenue</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-surface-container-high" />
-                  <span className="text-on-surface-variant">One-time Setup Fees</span>
+                  <span className="w-3 h-3 rounded-full bg-[#006693]" />
+                  <span className="text-on-surface-variant">Net Settled Payments</span>
                 </div>
               </div>
               <div className="flex items-center gap-1 font-mono-data-sm text-mono-data-sm text-on-surface-variant">
-                <span>Target Accuracy:</span>
-                <span className="text-primary font-semibold">99.98%</span>
+                <span>Data Source:</span>
+                <span className="text-primary font-semibold">Supabase PostgreSQL</span>
               </div>
             </div>
           </div>
@@ -637,21 +598,14 @@ export function DashboardPage() {
                   Subscription Growth
                 </h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Cohort additions &amp; {totalSubsCount} total contracts
+                  Active contracts &amp; {totalSubsCount} total subscriptions
                 </p>
               </div>
-              <button
-                className="p-1 text-on-surface-variant hover:text-on-surface rounded"
-                type="button"
-                aria-label="Options"
-              >
-                <MoreVertical size={18} />
-              </button>
             </div>
 
             {/* Recharts Subscription Growth Bar Chart */}
             <div className="my-2">
-              <SubscriptionGrowthChart data={mockRevenueStats} height={190} />
+              <SubscriptionGrowthChart data={timeSeriesStats} height={190} />
             </div>
 
             {/* Legend with Progress Bars */}
@@ -749,7 +703,7 @@ export function DashboardPage() {
                   Recent Subscriptions
                 </h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Real-time cohort creations and recurring contracts
+                  Live cohort additions and recurring contracts
                 </p>
               </div>
               <Link
@@ -774,36 +728,36 @@ export function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="font-body-sm text-body-sm divide-y-0 text-xs">
-                  {mockSubscriptions.slice(0, 5).map((sub) => {
-                    const customer = mockCustomers.find((c) => c.id === sub.customer_id);
-                    const plan = mockPlans.find((p) => p.id === sub.plan_id);
-                    const items = mockSubscriptionItems.filter((i) => i.subscription_id === sub.id);
-                    const amount = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-
-                    const displayName = customer?.company_name || customer?.name || "Customer";
-                    const email = customer?.email || "billing@client.com";
-                    const initials = getInitials(displayName);
-
-                    return (
+                  {recentSubscriptions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-on-surface-variant font-body-sm text-xs">
+                        No subscriptions registered yet.{" "}
+                        <Link href="/subscriptions/new" className="text-primary font-semibold hover:underline">
+                          Create your first subscription
+                        </Link>
+                      </td>
+                    </tr>
+                  ) : (
+                    recentSubscriptions.map((sub) => (
                       <tr key={sub.id} className="hover:bg-surface-container-low transition-colors border-b border-surface-container-high/10">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-full bg-surface-container-highest flex items-center justify-center font-mono-data-sm text-[11px] font-bold text-primary">
-                              {initials}
+                              {sub.customer_initials}
                             </div>
                             <div className="flex flex-col min-w-0">
                               <span className="font-label-md text-label-md font-semibold text-on-surface truncate">
-                                {displayName}
+                                {sub.customer_name}
                               </span>
                               <span className="font-body-sm text-body-sm text-on-surface-variant truncate text-[11px]">
-                                {email}
+                                {sub.customer_email}
                               </span>
                             </div>
                           </div>
                         </td>
                         <td className="py-3 px-3">
                           <span className="font-label-md text-label-md text-on-surface font-medium">
-                            {plan?.name || "Standard Plan"}
+                            {sub.plan_name}
                           </span>
                         </td>
                         <td className="py-3 px-3 font-mono-data-sm text-mono-data-sm text-on-surface-variant">
@@ -813,7 +767,7 @@ export function DashboardPage() {
                           {formatDate(sub.next_billing_date)}
                         </td>
                         <td className="py-3 px-3 text-right font-mono-data-sm text-mono-data-sm font-semibold text-on-surface">
-                          {formatINR(amount || 99)}
+                          {formatINR(sub.amount)}
                         </td>
                         <td className="py-3 px-4 text-right">
                           {sub.status === "active" ? (
@@ -844,8 +798,8 @@ export function DashboardPage() {
                           )}
                         </td>
                       </tr>
-                    );
-                  })}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -859,7 +813,7 @@ export function DashboardPage() {
                   Recent Settlements
                 </h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  Gateways, mandates &amp; instant reconciliations
+                  Gateways, ledger &amp; instant reconciliations
                 </p>
               </div>
               <Link
@@ -875,7 +829,7 @@ export function DashboardPage() {
               <table className="w-full text-left">
                 <thead className="bg-surface-container-low font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider text-[11px]">
                   <tr>
-                    <th className="py-2.5 px-4 font-semibold">Txn Reference</th>
+                    <th className="py-2.5 px-4 font-semibold">Txn Number</th>
                     <th className="py-2.5 px-3 font-semibold">Customer</th>
                     <th className="py-2.5 px-3 font-semibold">Invoice</th>
                     <th className="py-2.5 px-3 font-semibold text-right">Amount</th>
@@ -884,12 +838,17 @@ export function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="font-body-sm text-body-sm divide-y-0 text-xs">
-                  {mockPayments.slice(0, 5).map((pay) => {
-                    const customer = mockCustomers.find((c) => c.id === pay.customer_id);
-                    const invoice = mockInvoices.find((i) => i.id === pay.invoice_id);
-                    const displayName = customer?.company_name || customer?.name || "Customer";
-
-                    return (
+                  {recentSettlements.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-on-surface-variant font-body-sm text-xs">
+                        No payment settlements recorded yet.{" "}
+                        <Link href="/payments" className="text-primary font-semibold hover:underline">
+                          Record an invoice payment
+                        </Link>
+                      </td>
+                    </tr>
+                  ) : (
+                    recentSettlements.map((pay) => (
                       <tr key={pay.id} className="hover:bg-surface-container-low transition-colors border-b border-surface-container-high/10">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -909,12 +868,12 @@ export function DashboardPage() {
                         </td>
                         <td className="py-3 px-3">
                           <span className="font-label-md text-label-md text-on-surface font-medium">
-                            {displayName}
+                            {pay.customer_name}
                           </span>
                         </td>
                         <td className="py-3 px-3 font-mono-data-sm text-mono-data-sm text-primary">
                           <Link href={`/invoices`} className="hover:underline">
-                            {invoice?.invoice_number || "INV-2024-N/A"}
+                            {pay.invoice_number}
                           </Link>
                         </td>
                         <td className="py-3 px-3 text-right font-mono-data-sm text-mono-data-sm font-semibold text-on-surface">
@@ -943,8 +902,8 @@ export function DashboardPage() {
                           )}
                         </td>
                       </tr>
-                    );
-                  })}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -956,4 +915,3 @@ export function DashboardPage() {
 }
 
 export default DashboardPage;
-

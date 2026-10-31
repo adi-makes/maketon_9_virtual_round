@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   SlidersHorizontal,
@@ -15,6 +16,7 @@ import {
   TrendingUp,
   Calendar,
   ChevronDown,
+  ChevronRight,
   MoreVertical,
   X,
   FileText,
@@ -28,469 +30,47 @@ import {
   Receipt,
   Check,
   Eye,
-  CreditCard,
+  AlertCircle,
+  Inbox,
+  Ban,
 } from "lucide-react";
-import {
-  mockSubscriptions,
-  mockCustomers,
-  mockPlans,
-  mockInvoices,
-} from "@/mockData";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import {
+  getSubscriptions,
+  transitionSubscriptionStatus,
+  toggleCancelAtPeriodEnd,
+  type SubscriptionDisplayItem,
+  type SubscriptionLineItem,
+  type SubscriptionInvoiceRecord,
+} from "@/actions/subscriptions";
 
-export interface SubscriptionLineItem {
-  title: string;
-  detail: string;
-  icon: "users" | "cloud" | "tam" | "shield";
+export type {
+  SubscriptionDisplayItem,
+  SubscriptionLineItem,
+  SubscriptionInvoiceRecord,
+};
+
+export interface SubscriptionsPageProps {
+  initialSubscriptions?: SubscriptionDisplayItem[];
+  initialError?: string | null;
 }
 
-export interface SubscriptionInvoiceRecord {
-  invoice_no: string;
-  method: string;
-  date: string;
-  amount: string;
-  paid: boolean;
-}
+export function SubscriptionsPage({
+  initialSubscriptions,
+  initialError,
+}: SubscriptionsPageProps = {}) {
+  const router = useRouter();
 
-export interface SubscriptionDisplayItem {
-  id: string;
-  code: string;
-  customer_id: string;
-  customer_name: string;
-  customer_company: string;
-  customer_contact: string;
-  customer_initials: string;
-  billing_account_id: string;
-  plan_id: string;
-  plan_name: string;
-  plan_tier_label: string;
-  billing_cycle: "Monthly" | "Yearly" | "Multi-Year";
-  timeline_next: string;
-  timeline_from: string;
-  amount: number;
-  amount_formatted: string;
-  amount_cadence: string;
-  status:
-    | "active"
-    | "trial"
-    | "confirmed"
-    | "quotation"
-    | "draft"
-    | "paused"
-    | "closed";
-  mandate_bank: string;
-  mandate_last4: string;
-  mandate_type: string;
-  mandate_verified: boolean;
-  line_items: SubscriptionLineItem[];
-  recent_invoices: SubscriptionInvoiceRecord[];
-  auto_renew: boolean;
-}
-
-// Rich Indian B2B Initial dataset matching the Stitch design
-const INITIAL_SUBSCRIPTIONS: SubscriptionDisplayItem[] = [
-  {
-    id: "sub-001",
-    code: "SUB-2024-1049",
-    customer_id: "cust-001",
-    customer_name: "Priya Nair",
-    customer_company: "Zoho Tech Pvt Ltd",
-    customer_contact: "Priya Nair (FinOps)",
-    customer_initials: "ZT",
-    billing_account_id: "AC-9081",
-    plan_id: "plan-004",
-    plan_name: "Enterprise Suite",
-    plan_tier_label: "50 Seats + 500GB SLA",
-    billing_cycle: "Yearly",
-    timeline_next: "12 Jan 2025",
-    timeline_from: "12 Jan 2024",
-    amount: 120000,
-    amount_formatted: "₹1,20,000",
-    amount_cadence: "per year",
-    status: "active",
-    mandate_bank: "HDFC Bank e-Mandate",
-    mandate_last4: "8821",
-    mandate_type: "NACH Autopay",
-    mandate_verified: true,
-    line_items: [
-      {
-        title: "Seat Licenses (Tier 1)",
-        detail: "50 Seats",
-        icon: "users",
-      },
-      {
-        title: "Cloud Storage Add-on",
-        detail: "500 GB Encrypted",
-        icon: "cloud",
-      },
-      {
-        title: "Dedicated FinOps TAM",
-        detail: "24/7 SLA (Tier 1)",
-        icon: "tam",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-001",
-        method: "Paid via e-Mandate",
-        date: "12 Jan 2024",
-        amount: "₹1,20,000",
-        paid: true,
-      },
-      {
-        invoice_no: "INV-2023-112",
-        method: "Paid via Bank Transfer",
-        date: "12 Jan 2023",
-        amount: "₹1,05,000",
-        paid: true,
-      },
-    ],
-    auto_renew: true,
-  },
-  {
-    id: "sub-002",
-    code: "SUB-2024-1048",
-    customer_id: "cust-002",
-    customer_name: "Amit Patel",
-    customer_company: "FreshWorks Solutions",
-    customer_contact: "Amit Patel (CTO)",
-    customer_initials: "FS",
-    billing_account_id: "AC-7742",
-    plan_id: "plan-003",
-    plan_name: "Pro Scale",
-    plan_tier_label: "25 Seats + Realtime Telemetry",
-    billing_cycle: "Monthly",
-    timeline_next: "20 Nov 2024",
-    timeline_from: "20 Apr 2024",
-    amount: 14500,
-    amount_formatted: "₹14,500",
-    amount_cadence: "per month",
-    status: "active",
-    mandate_bank: "ICICI Corporate e-Mandate",
-    mandate_last4: "4410",
-    mandate_type: "e-Mandate Direct Debit",
-    mandate_verified: true,
-    line_items: [
-      {
-        title: "Pro Core Licenses",
-        detail: "25 Seats",
-        icon: "users",
-      },
-      {
-        title: "Telemetry & Logs Export",
-        detail: "Real-time Kafka Stream",
-        icon: "cloud",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-108",
-        method: "Paid via ICICI Autopay",
-        date: "20 Oct 2024",
-        amount: "₹14,500",
-        paid: true,
-      },
-    ],
-    auto_renew: true,
-  },
-  {
-    id: "sub-003",
-    code: "SUB-2024-1047",
-    customer_id: "cust-003",
-    customer_name: "Sunita Rao",
-    customer_company: "Razorpay Digital Labs",
-    customer_contact: "Sunita Rao (VP Eng)",
-    customer_initials: "RD",
-    billing_account_id: "AC-3109",
-    plan_id: "plan-001",
-    plan_name: "Starter Cloud",
-    plan_tier_label: "5 Seats + API Access",
-    billing_cycle: "Monthly",
-    timeline_next: "15 Nov 2024",
-    timeline_from: "01 Nov 2024",
-    amount: 2999,
-    amount_formatted: "₹2,999",
-    amount_cadence: "per month",
-    status: "trial",
-    mandate_bank: "Axis Bank UPI Autopay",
-    mandate_last4: "9012",
-    mandate_type: "UPI Recurring Mandate",
-    mandate_verified: true,
-    line_items: [
-      {
-        title: "Developer Seat Plan",
-        detail: "5 Seats Active",
-        icon: "users",
-      },
-      {
-        title: "Full API Playground",
-        detail: "10k calls/day",
-        icon: "cloud",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-099",
-        method: "Trial Authorization ₹2 Auth",
-        date: "01 Nov 2024",
-        amount: "₹2",
-        paid: true,
-      },
-    ],
-    auto_renew: true,
-  },
-  {
-    id: "sub-004",
-    code: "SUB-2024-1046",
-    customer_id: "cust-004",
-    customer_name: "Rajesh Kumar",
-    customer_company: "Reliance Retail Ent.",
-    customer_contact: "Rajesh Kumar (Director)",
-    customer_initials: "RR",
-    billing_account_id: "AC-1002",
-    plan_id: "plan-004",
-    plan_name: "Enterprise Custom",
-    plan_tier_label: "200 Seats + Dedicated Cloud",
-    billing_cycle: "Yearly",
-    timeline_next: "01 Jul 2025",
-    timeline_from: "01 Jul 2024",
-    amount: 480000,
-    amount_formatted: "₹4,80,000",
-    amount_cadence: "per year",
-    status: "active",
-    mandate_bank: "State Bank of India Commercial",
-    mandate_last4: "6732",
-    mandate_type: "NACH Physical Mandate",
-    mandate_verified: true,
-    line_items: [
-      {
-        title: "Enterprise Global Licenses",
-        detail: "200 Seats",
-        icon: "users",
-      },
-      {
-        title: "Dedicated AWS VPC Cluster",
-        detail: "Multi-AZ High Availability",
-        icon: "cloud",
-      },
-      {
-        title: "Executive TAM Support",
-        detail: "15 min SLA Response",
-        icon: "tam",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-054",
-        method: "Paid via SBI RTGS",
-        date: "01 Jul 2024",
-        amount: "₹4,80,000",
-        paid: true,
-      },
-    ],
-    auto_renew: true,
-  },
-  {
-    id: "sub-005",
-    code: "SUB-2024-1045",
-    customer_id: "cust-005",
-    customer_name: "Rohan Verma",
-    customer_company: "Cred FinTech Pvt Ltd",
-    customer_contact: "Rohan Verma (Lead Ops)",
-    customer_initials: "CF",
-    billing_account_id: "AC-5591",
-    plan_id: "plan-003",
-    plan_name: "Pro Scale",
-    plan_tier_label: "15 Seats + Compliance",
-    billing_cycle: "Monthly",
-    timeline_next: "Paused (Manual Hold)",
-    timeline_from: "20 Oct 2024",
-    amount: 8999,
-    amount_formatted: "₹8,999",
-    amount_cadence: "per month",
-    status: "paused",
-    mandate_bank: "Kotak Mahindra e-Mandate",
-    mandate_last4: "1120",
-    mandate_type: "NACH Autopay",
-    mandate_verified: true,
-    line_items: [
-      {
-        title: "Pro Compliance Licenses",
-        detail: "15 Seats (Hold)",
-        icon: "users",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-082",
-        method: "Paid via Kotak Autopay",
-        date: "20 Sep 2024",
-        amount: "₹8,999",
-        paid: true,
-      },
-    ],
-    auto_renew: false,
-  },
-  {
-    id: "sub-006",
-    code: "SUB-2024-1044",
-    customer_id: "cust-006",
-    customer_name: "Ananya Sen",
-    customer_company: "Flipkart Supply Chain",
-    customer_contact: "Ananya Sen (Logistics VP)",
-    customer_initials: "FS",
-    billing_account_id: "AC-4482",
-    plan_id: "plan-002",
-    plan_name: "Growth Tier",
-    plan_tier_label: "40 Seats + High SLA",
-    billing_cycle: "Yearly",
-    timeline_next: "Terminated / Closed",
-    timeline_from: "01 Jan 2024",
-    amount: 96000,
-    amount_formatted: "₹96,000",
-    amount_cadence: "per year",
-    status: "closed",
-    mandate_bank: "HDFC Corporate NetBanking",
-    mandate_last4: "5567",
-    mandate_type: "Cancelled Mandate",
-    mandate_verified: false,
-    line_items: [
-      {
-        title: "Growth Tier Licenses",
-        detail: "40 Seats Archival",
-        icon: "users",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-002",
-        method: "Final Settlement Paid",
-        date: "01 Sep 2024",
-        amount: "₹96,000",
-        paid: true,
-      },
-    ],
-    auto_renew: false,
-  },
-  {
-    id: "sub-007",
-    code: "SUB-2024-1043",
-    customer_id: "cust-007",
-    customer_name: "Vikram Singh",
-    customer_company: "Tata Digital Systems",
-    customer_contact: "Vikram Singh (Security)",
-    customer_initials: "TD",
-    billing_account_id: "AC-8833",
-    plan_id: "plan-001",
-    plan_name: "Starter Cloud",
-    plan_tier_label: "10 Seats + Dedicated IP",
-    billing_cycle: "Monthly",
-    timeline_next: "05 Dec 2024",
-    timeline_from: "05 Sep 2024",
-    amount: 4999,
-    amount_formatted: "₹4,999",
-    amount_cadence: "per month",
-    status: "confirmed",
-    mandate_bank: "Bank of Baroda e-Mandate",
-    mandate_last4: "2209",
-    mandate_type: "e-Mandate Direct Debit",
-    mandate_verified: true,
-    line_items: [
-      {
-        title: "Standard Cloud Tier",
-        detail: "10 Seats",
-        icon: "users",
-      },
-      {
-        title: "Static Whitelisted IP",
-        detail: "1 IPv4 Allocation",
-        icon: "shield",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-071",
-        method: "Paid via BoB Autopay",
-        date: "05 Nov 2024",
-        amount: "₹4,999",
-        paid: true,
-      },
-    ],
-    auto_renew: true,
-  },
-  {
-    id: "sub-008",
-    code: "SUB-2024-1042",
-    customer_id: "cust-008",
-    customer_name: "Meera Joshi",
-    customer_company: "Paytm Payments Bank",
-    customer_contact: "Meera Joshi (Lead Dev)",
-    customer_initials: "PP",
-    billing_account_id: "AC-2231",
-    plan_id: "plan-001",
-    plan_name: "Starter Cloud",
-    plan_tier_label: "3 Seats Trial",
-    billing_cycle: "Monthly",
-    timeline_next: "Awaiting Order Sign-off",
-    timeline_from: "28 Oct 2024",
-    amount: 1499,
-    amount_formatted: "₹1,499",
-    amount_cadence: "per month",
-    status: "draft",
-    mandate_bank: "UPI AutoPay Pending",
-    mandate_last4: "3381",
-    mandate_type: "Pending OTP Validation",
-    mandate_verified: false,
-    line_items: [
-      {
-        title: "Sandbox Developer Seat",
-        detail: "3 Seats",
-        icon: "users",
-      },
-    ],
-    recent_invoices: [
-      {
-        invoice_no: "INV-2024-DRAFT",
-        method: "Proforma Invoice Draft",
-        date: "28 Oct 2024",
-        amount: "₹1,499",
-        paid: false,
-      },
-    ],
-    auto_renew: false,
-  },
-];
-
-export function SubscriptionsPage() {
-  // Merge mockSubscriptions from mockData with our rich display records
-  const initialData = useMemo(() => {
-    // If mockSubscriptions has entries, correlate them or append
-    return INITIAL_SUBSCRIPTIONS.map((item, index) => {
-      const mockRow = mockSubscriptions[index];
-      if (!mockRow) return item;
-      return {
-        ...item,
-        id: mockRow.id || item.id,
-        status:
-          mockRow.status === "active"
-            ? "active"
-            : mockRow.status === "paused"
-            ? "paused"
-            : mockRow.status === "closed"
-            ? "closed"
-            : mockRow.status === "confirmed"
-            ? "confirmed"
-            : mockRow.status === "draft"
-            ? "draft"
-            : item.status,
-      };
-    });
-  }, []);
-
-  const [subscriptionsList, setSubscriptionsList] =
-    useState<SubscriptionDisplayItem[]>(initialData);
+  const [subscriptionsList, setSubscriptionsList] = useState<SubscriptionDisplayItem[]>(
+    initialSubscriptions || []
+  );
   const [selectedSubscription, setSelectedSubscription] =
-    useState<SubscriptionDisplayItem>(initialData[0]);
+    useState<SubscriptionDisplayItem | null>(
+      initialSubscriptions && initialSubscriptions.length > 0
+        ? initialSubscriptions[0]
+        : null
+    );
+
   const [isInspectorOpen, setIsInspectorOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -498,6 +78,29 @@ export function SubscriptionsPage() {
   const [cycleFilter, setCycleFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(initialError || null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPendingAction, setIsPendingAction] = useState(false);
+
+  // Pagination states
+  const pageSize = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Keep state synced when server sends updated props
+  useEffect(() => {
+    if (initialSubscriptions !== undefined) {
+      setSubscriptionsList(initialSubscriptions);
+      if (initialSubscriptions.length > 0) {
+        setSelectedSubscription((prev) => {
+          if (!prev) return initialSubscriptions[0];
+          const found = initialSubscriptions.find((s) => s.id === prev.id);
+          return found || initialSubscriptions[0];
+        });
+      } else {
+        setSelectedSubscription(null);
+      }
+    }
+  }, [initialSubscriptions]);
 
   // Quick Action notification helper
   const notifyAction = (msg: string) => {
@@ -505,52 +108,206 @@ export function SubscriptionsPage() {
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
-  // Toggle Pause/Resume on currently selected subscription
-  const handleTogglePause = () => {
+  // Manual client refresh from Supabase
+  const refreshData = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await getSubscriptions();
+      if (!res.success) {
+        setErrorMessage(res.error || "Failed to load subscriptions from database.");
+      } else {
+        const list = res.data || [];
+        setSubscriptionsList(list);
+        setSelectedSubscription((prev) => {
+          if (!prev) return list[0] || null;
+          const match = list.find((s) => s.id === prev.id);
+          return match || list[0] || null;
+        });
+        notifyAction("Subscriptions refreshed from database.");
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Error refreshing subscriptions.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Toggle Pause/Resume on currently selected subscription via Supabase
+  const handleTogglePause = async () => {
     if (!selectedSubscription) return;
     const isCurrentlyPaused = selectedSubscription.status === "paused";
     const nextStatus: SubscriptionDisplayItem["status"] = isCurrentlyPaused
       ? "active"
       : "paused";
 
-    const updated = {
-      ...selectedSubscription,
-      status: nextStatus,
-      timeline_next: isCurrentlyPaused
-        ? "12 Jan 2025"
-        : "Paused (Manual Hold)",
-    };
+    setIsPendingAction(true);
+    try {
+      const res = await transitionSubscriptionStatus(
+        selectedSubscription.id,
+        nextStatus
+      );
+      if (!res.success) {
+        notifyAction(`Failed to transition subscription: ${res.error}`);
+      } else {
+        const updated: SubscriptionDisplayItem = {
+          ...selectedSubscription,
+          status: nextStatus,
+          timeline_next: isCurrentlyPaused ? "Active" : "Paused",
+        };
 
-    setSelectedSubscription(updated);
-    setSubscriptionsList((prev) =>
-      prev.map((s) => (s.id === updated.id ? updated : s))
-    );
+        setSelectedSubscription(updated);
+        setSubscriptionsList((prev) =>
+          prev.map((s) => (s.id === updated.id ? updated : s))
+        );
 
-    notifyAction(
-      `Subscription ${updated.code} has been ${
-        isCurrentlyPaused ? "resumed" : "paused"
-      }.`
-    );
+        notifyAction(
+          res.message ||
+            `Subscription ${updated.code} has been ${
+              isCurrentlyPaused ? "resumed" : "paused"
+            }.`
+        );
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      notifyAction(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setIsPendingAction(false);
+    }
   };
 
-  // Toggle Auto-Renew Policy
-  const handleToggleAutoRenew = () => {
+  // Toggle Auto-Renew Policy via Supabase
+  const handleToggleAutoRenew = async () => {
     if (!selectedSubscription) return;
     const nextVal = !selectedSubscription.auto_renew;
-    const updated = {
-      ...selectedSubscription,
-      auto_renew: nextVal,
-    };
-    setSelectedSubscription(updated);
-    setSubscriptionsList((prev) =>
-      prev.map((s) => (s.id === updated.id ? updated : s))
-    );
-    notifyAction(
-      `Auto-renew policy ${nextVal ? "enabled" : "disabled"} for ${
-        updated.code
-      }.`
-    );
+    const cancelAtPeriodEnd = !nextVal;
+
+    setIsPendingAction(true);
+    try {
+      const res = await toggleCancelAtPeriodEnd(
+        selectedSubscription.id,
+        cancelAtPeriodEnd
+      );
+      if (!res.success) {
+        notifyAction(`Failed to update auto-renew: ${res.error}`);
+      } else {
+        const updated: SubscriptionDisplayItem = {
+          ...selectedSubscription,
+          auto_renew: nextVal,
+        };
+        setSelectedSubscription(updated);
+        setSubscriptionsList((prev) =>
+          prev.map((s) => (s.id === updated.id ? updated : s))
+        );
+        notifyAction(
+          res.message ||
+            `Auto-renew policy ${nextVal ? "enabled" : "disabled"} for ${
+              updated.code
+            }.`
+        );
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      notifyAction(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setIsPendingAction(false);
+    }
   };
+
+  // Cancel / Close Subscription via Supabase
+  const handleCloseSubscription = async () => {
+    if (!selectedSubscription) return;
+    if (
+      !confirm(
+        `Are you sure you want to cancel / close subscription ${selectedSubscription.code}?`
+      )
+    ) {
+      return;
+    }
+
+    setIsPendingAction(true);
+    try {
+      const res = await transitionSubscriptionStatus(
+        selectedSubscription.id,
+        "closed"
+      );
+      if (!res.success) {
+        notifyAction(`Failed to close subscription: ${res.error}`);
+      } else {
+        const updated: SubscriptionDisplayItem = {
+          ...selectedSubscription,
+          status: "closed",
+          timeline_next: "Closed",
+          auto_renew: false,
+        };
+        setSelectedSubscription(updated);
+        setSubscriptionsList((prev) =>
+          prev.map((s) => (s.id === updated.id ? updated : s))
+        );
+        notifyAction(res.message || `Subscription ${updated.code} closed.`);
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      notifyAction(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setIsPendingAction(false);
+    }
+  };
+
+  // Export filtered subscriptions to CSV
+  const handleExportCSV = () => {
+    if (filteredSubscriptions.length === 0) {
+      notifyAction("No subscriptions available to export.");
+      return;
+    }
+    const headers = [
+      "ID",
+      "Code",
+      "Customer Name",
+      "Company",
+      "Contact",
+      "Plan",
+      "Billing Cycle",
+      "Status",
+      "Amount",
+      "Next Billing",
+      "Start Date",
+    ];
+    const rows = filteredSubscriptions.map((s) => [
+      s.id,
+      s.code,
+      `"${s.customer_name.replace(/"/g, '""')}"`,
+      `"${s.customer_company.replace(/"/g, '""')}"`,
+      `"${s.customer_contact.replace(/"/g, '""')}"`,
+      `"${s.plan_name.replace(/"/g, '""')}"`,
+      s.billing_cycle,
+      s.status,
+      s.amount,
+      s.timeline_next,
+      s.timeline_from,
+    ]);
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `subscriptions_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    notifyAction(`Exported ${filteredSubscriptions.length} subscriptions to CSV.`);
+  };
+
+  // Dynamic unique plans for filter dropdown
+  const availablePlans = useMemo(() => {
+    return Array.from(
+      new Set(subscriptionsList.map((s) => s.plan_name).filter(Boolean))
+    );
+  }, [subscriptionsList]);
 
   // Filtered subscriptions based on tabs, search, and dropdowns
   const filteredSubscriptions = useMemo(() => {
@@ -562,74 +319,91 @@ export function SubscriptionsPage() {
 
       // Search filter
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.toLowerCase().trim();
         const matchesCode = item.code.toLowerCase().includes(query);
+        const matchesId = item.id.toLowerCase().includes(query);
         const matchesCompany = item.customer_company
           .toLowerCase()
           .includes(query);
+        const matchesName = item.customer_name.toLowerCase().includes(query);
         const matchesContact = item.customer_contact
           .toLowerCase()
           .includes(query);
         const matchesPlan = item.plan_name.toLowerCase().includes(query);
+        const matchesStatus = item.status.toLowerCase().includes(query);
         if (
           !matchesCode &&
+          !matchesId &&
           !matchesCompany &&
+          !matchesName &&
           !matchesContact &&
-          !matchesPlan
+          !matchesPlan &&
+          !matchesStatus
         ) {
           return false;
         }
       }
 
       // Plan filter
-      if (planFilter !== "all") {
-        if (
-          planFilter === "enterprise" &&
-          !item.plan_name.toLowerCase().includes("enterprise")
-        )
-          return false;
-        if (
-          planFilter === "pro" &&
-          !item.plan_name.toLowerCase().includes("pro")
-        )
-          return false;
-        if (
-          planFilter === "starter" &&
-          !item.plan_name.toLowerCase().includes("starter")
-        )
-          return false;
+      if (planFilter !== "all" && item.plan_name !== planFilter) {
+        return false;
       }
 
       // Cycle filter
-      if (cycleFilter !== "all") {
-        if (
-          cycleFilter === "monthly" &&
-          item.billing_cycle.toLowerCase() !== "monthly"
-        )
-          return false;
-        if (
-          cycleFilter === "yearly" &&
-          item.billing_cycle.toLowerCase() !== "yearly"
-        )
-          return false;
+      if (
+        cycleFilter !== "all" &&
+        item.billing_cycle.toLowerCase() !== cycleFilter.toLowerCase()
+      ) {
+        return false;
       }
 
       return true;
     });
   }, [subscriptionsList, activeTab, searchQuery, planFilter, cycleFilter]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, planFilter, cycleFilter]);
+
+  // Paginated records for table view
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredSubscriptions.length / pageSize)
+  );
+
+  const paginatedSubscriptions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSubscriptions.slice(start, start + pageSize);
+  }, [filteredSubscriptions, currentPage, pageSize]);
+
+  // Dynamic KPIs computed from live subscriptionsList
+  const totalCount = subscriptionsList.length;
+  const activeCount = subscriptionsList.filter((s) => s.status === "active").length;
+  const activePercent =
+    totalCount > 0 ? ((activeCount / totalCount) * 100).toFixed(1) : "0.0";
+  const pipelineCount = subscriptionsList.filter(
+    (s) =>
+      s.status === "trial" ||
+      s.status === "confirmed" ||
+      s.status === "draft" ||
+      s.status === "quotation"
+  ).length;
+  const closedCount = subscriptionsList.filter((s) => s.status === "closed").length;
+  const churnPercent =
+    totalCount > 0 ? ((closedCount / totalCount) * 100).toFixed(1) : "0.0";
+
   // Counts for tabs
   const tabCounts = useMemo(() => {
     return {
       all: subscriptionsList.length,
       active: subscriptionsList.filter((s) => s.status === "active").length,
-      trial: subscriptionsList.filter((s) => s.status === "trial").length,
-      confirmed: subscriptionsList.filter((s) => s.status === "confirmed")
-        .length,
-      quotation: subscriptionsList.filter((s) => s.status === "quotation")
-        .length,
+      confirmed: subscriptionsList.filter((s) => s.status === "confirmed").length,
+      quotation: subscriptionsList.filter((s) => s.status === "quotation").length,
       draft: subscriptionsList.filter((s) => s.status === "draft").length,
+      paused: subscriptionsList.filter((s) => s.status === "paused").length,
       closed: subscriptionsList.filter((s) => s.status === "closed").length,
+      trial: subscriptionsList.filter((s) => s.status === "trial").length,
     };
   }, [subscriptionsList]);
 
@@ -673,6 +447,13 @@ export function SubscriptionsPage() {
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-label-sm text-[11px] font-semibold border border-blue-200/60">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
             Confirmed
+          </span>
+        );
+      case "quotation":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 font-label-sm text-[11px] font-semibold border border-indigo-200/60">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+            Quotation
           </span>
         );
       case "paused":
@@ -729,20 +510,23 @@ export function SubscriptionsPage() {
       ),
     },
     {
-      header: "ID",
+      header: "Subscription ID",
       cell: (item) => {
         const isSelected = selectedSubscription?.id === item.id;
         return (
           <div className="flex items-center gap-1.5">
-            <span
-              className={`font-mono-data-sm text-mono-data-sm font-semibold ${
-                isSelected ? "text-primary" : "text-on-surface"
+            <Link
+              href={`/subscriptions/${item.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className={`font-mono-data-sm text-mono-data-sm font-semibold hover:underline ${
+                isSelected ? "text-primary" : "text-primary"
               }`}
+              title="View Subscription Detail"
             >
               {item.code}
-            </span>
+            </Link>
             {item.status === "active" && (
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             )}
           </div>
         );
@@ -767,7 +551,7 @@ export function SubscriptionsPage() {
       ),
     },
     {
-      header: "Product & Tier",
+      header: "Plan & Tier",
       cell: (item) => (
         <div className="flex flex-col max-w-[180px]">
           <span className="font-label-md text-label-md text-on-surface font-medium text-xs truncate">
@@ -824,20 +608,32 @@ export function SubscriptionsPage() {
       ),
     },
     {
-      header: "",
-      className: "w-10 px-3 text-center",
+      header: "Actions",
+      align: "center",
+      className: "w-20 px-2 text-center",
       cell: (item) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedSubscription(item);
-            setIsInspectorOpen(true);
-          }}
-          className="p-1 hover:bg-surface-container rounded-md text-on-surface-variant hover:text-on-surface transition-colors"
-          title="Inspect Subscription"
-        >
-          <MoreVertical size={16} />
-        </button>
+        <div className="flex items-center justify-center gap-1">
+          <Link
+            href={`/subscriptions/${item.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 hover:bg-surface-container rounded-md text-on-surface-variant hover:text-primary transition-colors"
+            title="View Details"
+          >
+            <Eye size={16} />
+          </Link>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedSubscription(item);
+              setIsInspectorOpen(true);
+            }}
+            className="p-1 hover:bg-surface-container rounded-md text-on-surface-variant hover:text-on-surface transition-colors"
+            title="Inspect"
+          >
+            <MoreVertical size={16} />
+          </button>
+        </div>
       ),
     },
   ];
@@ -861,6 +657,23 @@ export function SubscriptionsPage() {
           </div>
         )}
 
+        {/* Error Banner */}
+        {errorMessage && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-body-sm text-xs flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={18} className="text-rose-600 flex-shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={refreshData}
+              disabled={isLoading}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-semibold transition-colors disabled:opacity-50"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Header Breadcrumb & Actions */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex flex-col space-y-1">
@@ -877,7 +690,7 @@ export function SubscriptionsPage() {
               Subscriptions
             </h1>
             <p className="font-body-md text-body-md text-on-surface-variant text-sm">
-              Manage recurring subscriptions, renewals, customer contracts, and lifecycle statuses.
+              Manage live recurring subscriptions, renewals, customer contracts, and lifecycle statuses directly in Supabase.
             </p>
           </div>
 
@@ -891,42 +704,43 @@ export function SubscriptionsPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by subscription ID, customer..."
+                placeholder="Filter by subscription ID, customer, plan..."
                 className="w-64 md:w-72 h-10 pl-9 pr-3 rounded-lg bg-surface-container-lowest text-on-surface font-body-sm text-body-sm shadow-sm placeholder:text-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary border border-surface-container-high/60 transition-all text-xs"
               />
             </div>
 
             <button
               type="button"
-              onClick={() => notifyAction("Filter configuration updated.")}
-              className="h-10 px-3.5 flex items-center gap-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-md text-label-md shadow-sm border border-surface-container-high/60 transition-all text-xs font-medium"
+              onClick={refreshData}
+              disabled={isLoading}
+              className="h-10 px-3.5 flex items-center gap-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-md text-label-md shadow-sm border border-surface-container-high/60 transition-all text-xs font-medium disabled:opacity-50"
+              title="Refresh from database"
             >
-              <SlidersHorizontal size={16} className="text-on-surface-variant" />
-              <span>Filter</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-primary ml-0.5"></span>
+              <RefreshCw
+                size={16}
+                className={`text-on-surface-variant ${
+                  isLoading ? "animate-spin" : ""
+                }`}
+              />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                notifyAction("Exporting subscriptions data to CSV...")
-              }
+              onClick={handleExportCSV}
               className="h-10 px-3.5 flex items-center gap-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-md text-label-md shadow-sm border border-surface-container-high/60 transition-all text-xs font-medium"
             >
               <Download size={16} className="text-on-surface-variant" />
               <span>Export CSV</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                notifyAction("Subscription creation workflow launched.")
-              }
+            <Link
+              href="/subscriptions/new"
               className="h-10 px-4 flex items-center gap-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-label-md text-label-md shadow-sm transition-all text-xs font-medium"
             >
               <PlusCircle size={16} />
               <span>Create Subscription</span>
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -945,7 +759,7 @@ export function SubscriptionsPage() {
             </div>
             <div className="mt-3 mb-1 flex items-baseline gap-2">
               <span className="font-mono-data-lg text-mono-data-lg text-on-surface font-semibold tracking-tight text-2xl">
-                284
+                {totalCount}
               </span>
               <span className="font-mono-data-sm text-mono-data-sm text-on-surface-variant font-medium text-xs">
                 contracts
@@ -953,10 +767,8 @@ export function SubscriptionsPage() {
             </div>
             <div className="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm mt-1 text-xs">
               <span className="inline-flex items-center text-emerald-600 font-mono-data-sm font-semibold">
-                <ArrowUp size={12} />+18
-              </span>
-              <span className="text-on-surface-variant/80">
-                this month • All-time recorded
+                <ArrowUp size={12} />
+                Live Supabase Records
               </span>
             </div>
           </div>
@@ -974,17 +786,22 @@ export function SubscriptionsPage() {
             </div>
             <div className="mt-3 mb-1 flex items-baseline gap-2">
               <span className="font-mono-data-lg text-mono-data-lg text-on-surface font-semibold tracking-tight text-2xl">
-                248
+                {activeCount}
               </span>
               <span className="font-mono-data-sm text-mono-data-sm text-emerald-600 font-medium text-xs">
-                87.3% share
+                {activePercent}% share
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm mt-1">
               <div className="w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden flex">
                 <div
-                  className="bg-emerald-500 h-full rounded-full"
-                  style={{ width: "87.3%" }}
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.max(0, Number(activePercent))
+                    )}%`,
+                  }}
                 ></div>
               </div>
             </div>
@@ -998,7 +815,7 @@ export function SubscriptionsPage() {
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-amber-500/5 rounded-full pointer-events-none"></div>
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold text-[11px]">
-                In Trial Pipeline
+                In Pipeline / Draft
               </span>
               <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600">
                 <Clock size={18} />
@@ -1006,17 +823,15 @@ export function SubscriptionsPage() {
             </div>
             <div className="mt-3 mb-1 flex items-baseline gap-2">
               <span className="font-mono-data-lg text-mono-data-lg text-on-surface font-semibold tracking-tight text-2xl">
-                24
+                {pipelineCount}
               </span>
               <span className="inline-flex items-center text-amber-600 font-mono-data-sm font-semibold text-xs">
-                <TrendingUp size={12} className="mr-0.5" />+6
+                <TrendingUp size={12} className="mr-0.5" />
+                Pipeline
               </span>
             </div>
             <div className="flex items-center justify-between text-on-surface-variant font-body-sm text-[11px] mt-1">
-              <span>Avg duration: 14 days</span>
-              <span className="font-mono-data-sm font-medium text-amber-700">
-                78% conv.
-              </span>
+              <span>Draft, Quotation &amp; Confirmed</span>
             </div>
           </div>
 
@@ -1025,7 +840,7 @@ export function SubscriptionsPage() {
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/5 rounded-full pointer-events-none"></div>
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold text-[11px]">
-                Cancelled / Churned
+                Cancelled / Closed
               </span>
               <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600">
                 <AlertTriangle size={18} />
@@ -1033,10 +848,10 @@ export function SubscriptionsPage() {
             </div>
             <div className="mt-3 mb-1 flex items-baseline gap-2">
               <span className="font-mono-data-lg text-mono-data-lg text-on-surface font-semibold tracking-tight text-2xl">
-                12
+                {closedCount}
               </span>
               <span className="font-mono-data-sm text-mono-data-sm text-rose-600 font-medium text-xs">
-                2.1% churn
+                {churnPercent}% churn
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-[11px] mt-1">
@@ -1053,10 +868,10 @@ export function SubscriptionsPage() {
             {[
               { id: "all", label: "All", count: tabCounts.all },
               { id: "active", label: "Active", count: tabCounts.active },
-              { id: "trial", label: "Trial", count: tabCounts.trial },
               { id: "confirmed", label: "Confirmed", count: tabCounts.confirmed },
               { id: "quotation", label: "Quotation", count: tabCounts.quotation },
               { id: "draft", label: "Draft", count: tabCounts.draft },
+              { id: "paused", label: "Paused", count: tabCounts.paused },
               { id: "closed", label: "Closed", count: tabCounts.closed },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1085,25 +900,20 @@ export function SubscriptionsPage() {
 
           {/* Sub Filter Dropdowns & Batch Buttons */}
           <div className="flex flex-wrap items-center gap-2 self-end lg:self-auto text-xs">
-            <div className="flex items-center bg-surface-container-low rounded-lg px-2.5 py-1.5 gap-1.5 border border-surface-container-high/40">
-              <Calendar size={14} className="text-on-surface-variant" />
-              <span className="font-body-sm text-on-surface font-medium">
-                CY 2024–2025
-              </span>
-            </div>
-
             <div className="flex items-center bg-surface-container-low rounded-lg px-2.5 py-1.5 gap-1 border border-surface-container-high/40">
               <span className="text-on-surface-variant">Plan:</span>
               <select
                 value={planFilter}
                 onChange={(e) => setPlanFilter(e.target.value)}
-                aria-label="Filter by subscription plan tier"
+                aria-label="Filter by subscription plan"
                 className="bg-transparent font-medium text-on-surface focus:outline-none cursor-pointer"
               >
-                <option value="all">All Tiers</option>
-                <option value="starter">Starter Cloud</option>
-                <option value="pro">Pro Scale</option>
-                <option value="enterprise">Enterprise Custom</option>
+                <option value="all">All Plans</option>
+                {availablePlans.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -1118,42 +928,28 @@ export function SubscriptionsPage() {
                 <option value="all">All Cycles</option>
                 <option value="monthly">Monthly</option>
                 <option value="yearly">Yearly</option>
+                <option value="weekly">Weekly</option>
+                <option value="daily">Daily</option>
               </select>
             </div>
 
-            <div className="h-5 w-px bg-surface-container-high mx-1 hidden sm:block"></div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedIds.length === 0) {
-                  notifyAction("Please select subscriptions from the table.");
-                  return;
-                }
-                notifyAction(
-                  `Batch pause requested for ${selectedIds.length} subscriptions.`
-                );
-              }}
-              className="px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface font-label-sm uppercase tracking-wide font-medium border border-surface-container-high/40 transition-colors"
-            >
-              Pause Selected
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedIds.length === 0) {
-                  notifyAction("Please select subscriptions from the table.");
-                  return;
-                }
-                notifyAction(
-                  `Notice broadcast dispatched to ${selectedIds.length} customers.`
-                );
-              }}
-              className="px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface font-label-sm uppercase tracking-wide font-medium border border-surface-container-high/40 transition-colors"
-            >
-              Send Notice
-            </button>
+            {(planFilter !== "all" ||
+              cycleFilter !== "all" ||
+              searchQuery.trim() !== "" ||
+              activeTab !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setActiveTab("all");
+                  setPlanFilter("all");
+                  setCycleFilter("all");
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface font-label-sm uppercase tracking-wide font-medium border border-surface-container-high/40 transition-colors"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
 
@@ -1162,21 +958,76 @@ export function SubscriptionsPage() {
           {/* Table Container */}
           <div
             className={`${
-              isInspectorOpen ? "lg:col-span-8" : "lg:col-span-12"
+              isInspectorOpen && selectedSubscription
+                ? "lg:col-span-8"
+                : "lg:col-span-12"
             } flex flex-col bg-surface-container-lowest rounded-xl shadow-sm border border-surface-container-high/50 overflow-hidden transition-all`}
           >
             <DataTable
               columns={columns}
-              data={filteredSubscriptions}
+              data={paginatedSubscriptions}
               keyExtractor={(item) => item.id}
               selectable={false}
-              selectedIds={selectedSubscription ? [selectedSubscription.id] : []}
+              selectedIds={
+                selectedSubscription ? [selectedSubscription.id] : []
+              }
               onRowClick={(item) => {
                 setSelectedSubscription(item);
                 setIsInspectorOpen(true);
               }}
-              pageSize={10}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={filteredSubscriptions.length}
+              pageSize={pageSize}
+              onPageChange={(page) => setCurrentPage(page)}
+              isLoading={isLoading}
               searchPlaceholder="Filter subscriptions..."
+              emptyState={
+                subscriptionsList.length === 0 ? (
+                  <div className="py-16 px-4 flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant mb-3">
+                      <Inbox size={24} />
+                    </div>
+                    <h4 className="font-headline-sm text-headline-sm font-semibold text-on-surface mb-1">
+                      No subscriptions found
+                    </h4>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mb-4">
+                      There are currently no subscription records in the database. Create a new subscription to get started.
+                    </p>
+                    <Link
+                      href="/subscriptions/new"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-label-md text-xs font-semibold shadow hover:bg-primary/90 transition-colors"
+                    >
+                      <PlusCircle size={16} />
+                      <span>Create Subscription</span>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="py-16 px-4 flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant mb-3">
+                      <Search size={24} />
+                    </div>
+                    <h4 className="font-headline-sm text-headline-sm font-semibold text-on-surface mb-1">
+                      No matching subscriptions
+                    </h4>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mb-4">
+                      No subscriptions matched your active filter or search query.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setActiveTab("all");
+                        setPlanFilter("all");
+                        setCycleFilter("all");
+                      }}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-xs font-medium transition-colors"
+                    >
+                      <span>Reset Filters</span>
+                    </button>
+                  </div>
+                )
+              }
             />
           </div>
 
@@ -1187,34 +1038,23 @@ export function SubscriptionsPage() {
               <div className="p-5 bg-surface-container-low/50 flex flex-col gap-3 border-b border-surface-container-high/40">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono-data-md text-mono-data-md font-bold text-primary text-sm">
+                    <Link
+                      href={`/subscriptions/${selectedSubscription.id}`}
+                      className="font-mono-data-md text-mono-data-md font-bold text-primary text-sm hover:underline"
+                      title="View full subscription detail"
+                    >
                       {selectedSubscription.code}
-                    </span>
+                    </Link>
                     {renderStatusBadge(selectedSubscription.status)}
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() =>
-                        notifyAction(
-                          `Downloading contract agreement for ${selectedSubscription.code}...`
-                        )
-                      }
-                      className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors"
-                      title="Download Agreement"
-                    >
-                      <FileText size={16} />
-                    </button>
-                    <button
-                      onClick={() =>
-                        notifyAction(
-                          `Opening editor for ${selectedSubscription.code}`
-                        )
-                      }
-                      className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors"
-                      title="Edit Subscription"
+                    <Link
+                      href={`/subscriptions/${selectedSubscription.id}`}
+                      className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-md transition-colors"
+                      title="View & Edit Subscription"
                     >
                       <FileEdit size={16} />
-                    </button>
+                    </Link>
                     <button
                       onClick={() => setIsInspectorOpen(false)}
                       className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-colors"
@@ -1257,7 +1097,7 @@ export function SubscriptionsPage() {
                   </div>
                   <div>
                     <div className="font-label-sm text-label-sm text-on-surface-variant uppercase text-[10px] font-semibold tracking-wider">
-                      Renewal Date
+                      Next Billing
                     </div>
                     <div className="font-mono-data-md text-mono-data-md font-bold text-emerald-600 text-sm mt-0.5">
                       {selectedSubscription.timeline_next}
@@ -1340,36 +1180,42 @@ export function SubscriptionsPage() {
                       All Invoices
                     </Link>
                   </div>
-                  <div className="space-y-1.5">
-                    {selectedSubscription.recent_invoices.map((inv, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2.5 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors border border-surface-container-high/30"
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-mono-data-sm text-mono-data-sm font-semibold text-on-surface text-xs">
-                            {inv.invoice_no}
-                          </span>
-                          <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
-                            {inv.method} • {inv.date}
-                          </span>
+                  {selectedSubscription.recent_invoices.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {selectedSubscription.recent_invoices.map((inv, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2.5 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors border border-surface-container-high/30"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-mono-data-sm text-mono-data-sm font-semibold text-on-surface text-xs">
+                              {inv.invoice_no}
+                            </span>
+                            <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
+                              {inv.method} • {inv.date}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono-data-sm text-mono-data-sm font-semibold text-on-surface text-xs">
+                              {inv.amount}
+                            </span>
+                            {inv.paid ? (
+                              <CheckCircle2
+                                size={14}
+                                className="text-emerald-600"
+                              />
+                            ) : (
+                              <Clock size={14} className="text-amber-600" />
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono-data-sm text-mono-data-sm font-semibold text-on-surface text-xs">
-                            {inv.amount}
-                          </span>
-                          {inv.paid ? (
-                            <CheckCircle2
-                              size={14}
-                              className="text-emerald-600"
-                            />
-                          ) : (
-                            <Clock size={14} className="text-amber-600" />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-center text-xs text-on-surface-variant bg-surface-container-low rounded-lg border border-surface-container-high/30">
+                      No invoices generated yet.
+                    </div>
+                  )}
                 </div>
 
                 {/* Auto-Renew Policy Toggle */}
@@ -1382,15 +1228,16 @@ export function SubscriptionsPage() {
                       </span>
                       <span className="font-body-sm text-body-sm text-on-surface-variant text-[11px]">
                         {selectedSubscription.auto_renew
-                          ? "Triggers renewal notice 30 days prior"
-                          : "Manual renewal required at term expiry"}
+                          ? "Automatically renews at term end"
+                          : "Scheduled to cancel at period end"}
                       </span>
                     </div>
                   </div>
                   <button
                     type="button"
+                    disabled={isPendingAction}
                     onClick={handleToggleAutoRenew}
-                    className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${
+                    className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors disabled:opacity-50 ${
                       selectedSubscription.auto_renew
                         ? "bg-primary justify-end"
                         : "bg-surface-container-high justify-start"
@@ -1402,27 +1249,41 @@ export function SubscriptionsPage() {
               </div>
 
               {/* Inspector Footer Actions */}
-              <div className="p-4 bg-surface-container-low/70 flex items-center justify-between gap-3 border-t border-surface-container-high/40">
-                <button
-                  type="button"
-                  onClick={handleTogglePause}
-                  className="w-1/2 py-2 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-md text-label-md shadow-sm border border-surface-container-high/50 transition-all text-center text-xs font-semibold"
+              <div className="p-4 bg-surface-container-low/70 flex flex-col gap-2 border-t border-surface-container-high/40">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    disabled={isPendingAction}
+                    onClick={handleTogglePause}
+                    className="w-1/2 py-2 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-md text-label-md shadow-sm border border-surface-container-high/50 transition-all text-center text-xs font-semibold disabled:opacity-50"
+                  >
+                    {selectedSubscription.status === "paused"
+                      ? "Resume Billing"
+                      : "Pause Billing"}
+                  </button>
+                  {selectedSubscription.status !== "closed" ? (
+                    <button
+                      type="button"
+                      disabled={isPendingAction}
+                      onClick={handleCloseSubscription}
+                      className="w-1/2 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-label-md text-label-md shadow-sm border border-rose-200 transition-all text-center text-xs font-semibold disabled:opacity-50"
+                    >
+                      Cancel / Close
+                    </button>
+                  ) : (
+                    <span className="w-1/2 py-2 text-center text-xs font-medium text-on-surface-variant">
+                      Subscription Closed
+                    </span>
+                  )}
+                </div>
+
+                <Link
+                  href={`/subscriptions/${selectedSubscription.id}`}
+                  className="w-full py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-label-md text-label-md shadow-sm transition-all text-center text-xs font-semibold flex items-center justify-center gap-1.5"
                 >
-                  {selectedSubscription.status === "paused"
-                    ? "Resume Billing"
-                    : "Pause Billing"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    notifyAction(
-                      `Upgrade catalog modal triggered for ${selectedSubscription.code}`
-                    )
-                  }
-                  className="w-1/2 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-label-md text-label-md shadow-sm transition-all text-center text-xs font-semibold"
-                >
-                  Upgrade Tier
-                </button>
+                  <span>Manage Full Lifecycle</span>
+                  <ChevronRight size={14} />
+                </Link>
               </div>
             </div>
           )}
@@ -1476,4 +1337,3 @@ export function SubscriptionsPage() {
     </main>
   );
 }
-
