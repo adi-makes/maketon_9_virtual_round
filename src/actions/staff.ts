@@ -63,8 +63,12 @@ export async function createStaffMember(
       };
     }
 
+    // 3. Obtain privileged admin client with SUPABASE_SECRET_KEY
+    const adminClient = getAdminClient();
+
     // Check caller's role from public.profiles or user_metadata
-    const { data: callerProfile } = await supabase
+    const dbForAuth = adminClient || supabase;
+    const { data: callerProfile } = await dbForAuth
       .from("profiles")
       .select("role")
       .eq("id", callerUser.id)
@@ -82,8 +86,6 @@ export async function createStaffMember(
       };
     }
 
-    // 3. Obtain privileged admin client with SUPABASE_SECRET_KEY
-    const adminClient = getAdminClient();
     if (!adminClient) {
       return {
         success: false,
@@ -155,28 +157,126 @@ export async function createStaffMember(
 
 /**
  * Fetch all team members (Admins and Staff) for the management table.
+ * Uses privileged admin client to bypass RLS recursion, and reconciles
+ * with Supabase Auth users to ensure all team operators are accurately returned.
  */
 export async function getStaffMembers(): Promise<StaffProfile[]> {
   try {
-    const supabase = await createClient();
+    const adminClient = getAdminClient();
+    const db = adminClient || (await createClient());
 
-    const { data, error } = await supabase
+    const { data: profileRows, error } = await db
       .from("profiles")
       .select("id, email, full_name, role, created_at")
       .in("role", ["admin", "staff"])
       .order("created_at", { ascending: false });
 
-    if (error || !data) {
-      return [];
+    if (error) {
+      console.warn("Notice: profiles query error:", error.message);
     }
 
-    return data.map((p) => ({
-      id: p.id,
-      email: p.email,
-      fullName: p.full_name,
-      role: p.role as UserRole,
-      createdAt: p.created_at,
-    }));
+    // Map of auth users for metadata reconciliation and self-healing
+    const authStaffMap = new Map<
+      string,
+      { id: string; email: string; fullName?: string; role: UserRole; createdAt: string }
+    >();
+
+    if (adminClient) {
+      try {
+        const { data: authData } = await adminClient.auth.admin.listUsers();
+        if (authData?.users) {
+          for (const u of authData.users) {
+            const email = u.email?.toLowerCase() || "";
+            const roleMeta = u.user_metadata?.role as UserRole | undefined;
+            const role: UserRole | undefined =
+              roleMeta === "admin" || email.startsWith("admin@")
+                ? "admin"
+                : roleMeta === "staff" || email.startsWith("staff@")
+                  ? "staff"
+                  : undefined;
+
+            if (role === "admin" || role === "staff") {
+              authStaffMap.set(u.id, {
+                id: u.id,
+                email: u.email || "",
+                fullName: u.user_metadata?.full_name,
+                role,
+                createdAt: u.created_at,
+              });
+            }
+          }
+        }
+      } catch (authErr) {
+        console.warn("Notice: could not list auth users:", authErr);
+      }
+    }
+
+    const seenIds = new Set<string>();
+    const seenEmails = new Set<string>();
+    const staffList: StaffProfile[] = [];
+
+    // 1. Process records found in public.profiles
+    for (const p of profileRows || []) {
+      seenIds.add(p.id);
+      if (p.email) seenEmails.add(p.email.toLowerCase());
+
+      const authUser = authStaffMap.get(p.id);
+
+      // Clean up display name
+      let name = p.full_name?.trim() || null;
+      if (!name || name.toLowerCase() === "admin" || name.toLowerCase() === "staff") {
+        if (authUser?.fullName) {
+          name = authUser.fullName;
+        } else if (p.role === "admin" || p.email?.toLowerCase().startsWith("admin@")) {
+          name = "System Administrator";
+        } else if (p.role === "staff") {
+          name = "Staff Operator";
+        }
+      }
+
+      staffList.push({
+        id: p.id,
+        email: p.email || authUser?.email || "unknown@subscriptiq.com",
+        fullName: name,
+        role: (p.role as UserRole) || authUser?.role || "staff",
+        createdAt: p.created_at || authUser?.createdAt || new Date().toISOString(),
+      });
+    }
+
+    // 2. Self-healing: include any staff/admin present in Auth but missing in public.profiles
+    for (const [id, u] of Array.from(authStaffMap.entries())) {
+      if (!seenIds.has(id) && u.email && !seenEmails.has(u.email.toLowerCase())) {
+        const name =
+          u.fullName || (u.role === "admin" ? "System Administrator" : "Staff Operator");
+
+        staffList.push({
+          id,
+          email: u.email,
+          fullName: name,
+          role: u.role,
+          createdAt: u.createdAt,
+        });
+
+        // Insert missing record into public.profiles in background
+        if (adminClient) {
+          adminClient
+            .from("profiles")
+            .upsert({
+              id,
+              email: u.email,
+              full_name: name,
+              role: u.role,
+              updated_at: new Date().toISOString(),
+            })
+            .then(() => {});
+        }
+      }
+    }
+
+    // Sort by creation date descending
+    return staffList.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   } catch (err) {
     console.error("Error fetching staff members:", err);
     return [];

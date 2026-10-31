@@ -209,10 +209,15 @@ export default async function StaffManagementPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {displayList.map((member) => {
-                const initials = (member.fullName || member.email)
-                  .substring(0, 2)
-                  .toUpperCase();
                 const isAdmin = member.role === "admin";
+                const name =
+                  member.fullName ||
+                  (isAdmin ? "System Administrator" : "Staff Operator");
+                const words = name.trim().split(/\s+/).filter(Boolean);
+                const initials =
+                  words.length >= 2
+                    ? (words[0][0] + words[1][0]).toUpperCase()
+                    : (name || member.email).slice(0, 2).toUpperCase();
 
                 return (
                   <tr
@@ -232,7 +237,7 @@ export default async function StaffManagementPage() {
                         </div>
                         <div>
                           <p className="font-semibold text-slate-900 dark:text-white">
-                            {member.fullName || "Team Member"}
+                            {name}
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                             {member.email}
