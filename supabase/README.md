@@ -49,6 +49,7 @@ npx supabase db reset
 ## 🔒 Row-Level Security (RLS) Summary
 
 All 12 tables have RLS enabled by default:
+
 - **Public**: Can read active `products`, `variants`, and `plans`.
 - **Admins & Staff**: Full access to all business data (customers, subscriptions, invoices, payments).
 - **Customers**: Restricted by `auth.uid()` through the `profiles.customer_id` mapping. Customers can only read and manage records that belong to their customer account.

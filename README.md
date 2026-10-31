@@ -19,23 +19,24 @@ SubscriptIQ is a production-grade subscription management and recurring billing 
 
 ## 🛠️ Technology Stack
 
-| Layer | Technology |
-| :--- | :--- |
-| **Framework** | Next.js 14 (App Router) with React 18 |
-| **Language** | TypeScript (Strict Mode) |
-| **Styling & UI** | Tailwind CSS & shadcn/ui |
-| **Icons & Charts** | Lucide React & Recharts |
-| **Forms & Validation** | React Hook Form & Zod with `@hookform/resolvers` |
-| **Database** | Supabase PostgreSQL (12 Relational Tables, RLS Enabled) |
-| **Authentication** | Supabase Auth (`@supabase/ssr` with Cookie Management) |
-| **Package Manager** | npm (Strictly npm only) |
-| **Deployment** | Vercel |
+| Layer                  | Technology                                              |
+| :--------------------- | :------------------------------------------------------ |
+| **Framework**          | Next.js 14 (App Router) with React 18                   |
+| **Language**           | TypeScript (Strict Mode)                                |
+| **Styling & UI**       | Tailwind CSS & shadcn/ui                                |
+| **Icons & Charts**     | Lucide React & Recharts                                 |
+| **Forms & Validation** | React Hook Form & Zod with `@hookform/resolvers`        |
+| **Database**           | Supabase PostgreSQL (12 Relational Tables, RLS Enabled) |
+| **Authentication**     | Supabase Auth (`@supabase/ssr` with Cookie Management)  |
+| **Package Manager**    | npm (Strictly npm only)                                 |
+| **Deployment**         | Vercel                                                  |
 
 ---
 
 ## 📋 Prerequisites
 
 Before starting, ensure you have:
+
 1. **Git** (`>= 2.40`)
 2. **Node.js** (`>= 18.18` or `20.x LTS`)
 3. **npm** (`>= 9.x`)
@@ -46,6 +47,7 @@ Before starting, ensure you have:
 ## 🚀 Quickstart Installation
 
 ### 1. Clone & Install
+
 ```bash
 git clone <REPOSITORY_URL>
 cd subscriptiq
@@ -53,7 +55,9 @@ npm install
 ```
 
 ### 2. Environment Configuration
+
 Create your local environment file:
+
 ```bash
 # On Linux / macOS
 cp .env.example .env.local
@@ -63,6 +67,7 @@ Copy-Item .env.example .env.local
 ```
 
 Open `.env.local` and add the shared Supabase project credentials:
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-publishable-key
@@ -72,16 +77,20 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-publishable-key
 > **Strict Environment Policy**: All environment files must strictly reside in the repository root. Never commit `.env.local`. Run `npm run check:env-files` to verify compliance.
 
 ### 3. Database Initialization
+
 Apply the complete 12-table starter schema to your Supabase project:
+
 1. Log in to the [Supabase Dashboard](https://supabase.com/dashboard).
 2. Open **SQL Editor** &rarr; **New Query**.
 3. Copy and run the contents of [`supabase/migrations/20261031000000_initial_schema.sql`](file:///c:/Developments/subscriptiq/supabase/migrations/20261031000000_initial_schema.sql).
 4. Run the contents of [`supabase/seed.sql`](file:///c:/Developments/subscriptiq/supabase/seed.sql) to populate initial demo plans and customers.
 
 ### 4. Run the Development Server
+
 ```bash
 npm run dev
 ```
+
 Open [http://localhost:3000](http://localhost:3000) in your browser. The public landing page renders without requiring live database access.
 
 ---
@@ -89,6 +98,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. The public 
 ## 🧪 Validation & Quality Scripts
 
 Run these scripts before committing or merging:
+
 ```bash
 # Validate .env.local syntax and keys without printing secrets
 npm run check:env
@@ -122,6 +132,7 @@ Refer to [`docs/TEAM_RESPONSIBILITIES.md`](file:///c:/Developments/subscriptiq/d
 ---
 
 ## 🔑 Demo Accounts (Password: `Password@123`)
+
 - **Admin**: `admin@subscriptiq.com` (Full administrative & billing control)
 - **Staff**: `staff@subscriptiq.com` (Operational customer & quotation management)
 - **Customer**: `customer@acme.com` (Self-service access to Acme Corp records)

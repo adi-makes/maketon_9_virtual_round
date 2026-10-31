@@ -20,7 +20,10 @@ export async function recordPaymentAction(
     const reference = (formData.get("reference") as string) || null;
 
     if (!invoiceId || isNaN(amount) || amount <= 0) {
-      return { success: false, error: "Valid invoice ID and positive amount required." };
+      return {
+        success: false,
+        error: "Valid invoice ID and positive amount required.",
+      };
     }
 
     // 1. Fetch invoice details

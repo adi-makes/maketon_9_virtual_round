@@ -16,7 +16,8 @@ export async function runBillingCycle(): Promise<BillingRunResult> {
   // 1. Query active subscriptions due for billing
   const { data: subscriptions, error: subError } = await supabase
     .from("subscriptions")
-    .select(`
+    .select(
+      `
       id,
       customer_id,
       start_date,
@@ -43,7 +44,8 @@ export async function runBillingCycle(): Promise<BillingRunResult> {
           price_adjustment
         )
       )
-    `)
+    `
+    )
     .eq("status", "active");
 
   if (subError || !subscriptions) {
@@ -97,7 +99,7 @@ export async function runBillingCycle(): Promise<BillingRunResult> {
     const lineItems = items.map((item: any) => {
       const base = Number(sub.plans?.products?.base_price || 0);
       const adjustment = Number(item.product_variants?.price_adjustment || 0);
-      const unitPrice = Number(item.unit_price) || (base + adjustment);
+      const unitPrice = Number(item.unit_price) || base + adjustment;
       const quantity = Number(item.quantity) || 1;
       return {
         description: `${sub.plans?.products?.name || "Product"} (${item.product_variants?.name || "Standard"})`,

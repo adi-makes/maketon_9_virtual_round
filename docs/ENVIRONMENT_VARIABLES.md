@@ -14,19 +14,20 @@ This document catalogs every environment variable used in **SubscriptIQ**, its p
 
 ## 📋 Variable Catalog
 
-| Variable | Scope | Required? | Purpose | Where to Obtain |
-| :--- | :---: | :---: | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Public / Client & Server | **Yes** | Project HTTPS API endpoint for Supabase | Supabase Dashboard &rarr; Project Settings &rarr; API &rarr; Project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public / Client & Server | **Yes** | Anonymous publishable API key for queries guarded by RLS | Supabase Dashboard &rarr; Project Settings &rarr; API &rarr; Project API keys (`anon` / `public`) |
-| `SUPABASE_SECRET_KEY` | **Server-Only (Private)** | Optional | Service role key for privileged background administrative tasks | Supabase Dashboard &rarr; Project Settings &rarr; API &rarr; `service_role` (Never expose to browser) |
-| `NEXT_PUBLIC_APP_NAME` | Public | Optional | Application title displayed in header and emails | Defaults to `SubscriptIQ` |
-| `NEXT_PUBLIC_APP_URL` | Public | Optional | Canonical base URL for redirects and links | `http://localhost:3000` for local development |
+| Variable                               |           Scope           | Required? | Purpose                                                         | Where to Obtain                                                                                       |
+| :------------------------------------- | :-----------------------: | :-------: | :-------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Public / Client & Server  |  **Yes**  | Project HTTPS API endpoint for Supabase                         | Supabase Dashboard &rarr; Project Settings &rarr; API &rarr; Project URL                              |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public / Client & Server  |  **Yes**  | Anonymous publishable API key for queries guarded by RLS        | Supabase Dashboard &rarr; Project Settings &rarr; API &rarr; Project API keys (`anon` / `public`)     |
+| `SUPABASE_SECRET_KEY`                  | **Server-Only (Private)** | Optional  | Service role key for privileged background administrative tasks | Supabase Dashboard &rarr; Project Settings &rarr; API &rarr; `service_role` (Never expose to browser) |
+| `NEXT_PUBLIC_APP_NAME`                 |          Public           | Optional  | Application title displayed in header and emails                | Defaults to `SubscriptIQ`                                                                             |
+| `NEXT_PUBLIC_APP_URL`                  |          Public           | Optional  | Canonical base URL for redirects and links                      | `http://localhost:3000` for local development                                                         |
 
 ---
 
 ## 🧪 Validation Commands
 
 Check your local environment at any time:
+
 ```bash
 # Verify .env.local exists and has valid Supabase credentials
 npm run check:env

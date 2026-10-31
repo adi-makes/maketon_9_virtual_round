@@ -6,6 +6,7 @@
 # Next.js build and cache
 .next/
 out/
+*.tsbuildinfo
 
 # Dependencies
 node_modules/

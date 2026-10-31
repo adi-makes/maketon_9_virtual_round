@@ -7,6 +7,7 @@ Welcome to the **SubscriptIQ** team repository! Follow these standards to ensure
 ## 🌳 Branch Naming Policy
 
 Work exclusively on your assigned module feature branch:
+
 - **Member 1**: `feat/dashboard`
 - **Member 2**: `feat/subscriptions`
 - **Member 3**: `feat/billing`
@@ -19,6 +20,7 @@ Do not commit directly to `main`. All changes to `main` must arrive via verified
 ## 📝 Commit Conventions
 
 Use Conventional Commits syntax:
+
 ```text
 feat(<module>): add <feature description>
 fix(<module>): resolve <bug description>
@@ -27,6 +29,7 @@ chore: update dependencies or scripts
 ```
 
 Examples:
+
 - `feat(dashboard): add active subscriptions revenue card`
 - `feat(billing): add duplicate billing check in generator`
 - `fix(auth): update session cookie expiration in middleware`
@@ -36,6 +39,7 @@ Examples:
 ## 🛡️ Pre-Merge Quality Checklist
 
 Before merging your feature branch, verify locally that your changes pass all checks:
+
 ```bash
 # 1. Typecheck entire application
 npm run typecheck
@@ -55,6 +59,7 @@ npm run build
 ## 🤝 Shared-File Coordination
 
 The following files are shared across all 4 team members:
+
 - `src/types/index.ts`
 - `src/types/database.ts`
 - `src/lib/utils.ts`

@@ -6,25 +6,13 @@
 export type UserRole = "admin" | "staff" | "customer";
 
 export type SubscriptionStatus =
-  | "draft"
-  | "quotation"
-  | "confirmed"
-  | "active"
-  | "paused"
-  | "closed";
+  "draft" | "quotation" | "confirmed" | "active" | "paused" | "closed";
 
 export type InvoiceStatus =
-  | "draft"
-  | "confirmed"
-  | "partially_paid"
-  | "paid"
-  | "cancelled";
+  "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
 
 export type PaymentMethod =
-  | "manual_entry"
-  | "bank_transfer"
-  | "stripe"
-  | "razorpay";
+  "manual_entry" | "bank_transfer" | "stripe" | "razorpay";
 
 export type BillingFrequency = "monthly" | "yearly";
 

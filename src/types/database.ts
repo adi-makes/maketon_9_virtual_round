@@ -48,6 +48,7 @@ export interface Database {
           customer_id?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       customers: {
         Row: {
@@ -79,6 +80,7 @@ export interface Database {
           phone?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       products: {
         Row: {
@@ -107,6 +109,7 @@ export interface Database {
           is_active?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       product_variants: {
         Row: {
@@ -135,6 +138,7 @@ export interface Database {
           sku?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       plans: {
         Row: {
@@ -166,13 +170,20 @@ export interface Database {
           is_active?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       subscriptions: {
         Row: {
           id: string;
           customer_id: string;
           plan_id: string;
-          status: "draft" | "quotation" | "confirmed" | "active" | "paused" | "closed";
+          status:
+            | "draft"
+            | "quotation"
+            | "confirmed"
+            | "active"
+            | "paused"
+            | "closed";
           start_date: string;
           current_period_start: string | null;
           current_period_end: string | null;
@@ -185,7 +196,13 @@ export interface Database {
           id?: string;
           customer_id: string;
           plan_id: string;
-          status?: "draft" | "quotation" | "confirmed" | "active" | "paused" | "closed";
+          status?:
+            | "draft"
+            | "quotation"
+            | "confirmed"
+            | "active"
+            | "paused"
+            | "closed";
           start_date?: string;
           current_period_start?: string | null;
           current_period_end?: string | null;
@@ -198,7 +215,13 @@ export interface Database {
           id?: string;
           customer_id?: string;
           plan_id?: string;
-          status?: "draft" | "quotation" | "confirmed" | "active" | "paused" | "closed";
+          status?:
+            | "draft"
+            | "quotation"
+            | "confirmed"
+            | "active"
+            | "paused"
+            | "closed";
           start_date?: string;
           current_period_start?: string | null;
           current_period_end?: string | null;
@@ -206,6 +229,7 @@ export interface Database {
           cancel_at_period_end?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       subscription_items: {
         Row: {
@@ -234,6 +258,7 @@ export interface Database {
           unit_price?: number;
           updated_at?: string;
         };
+        Relationships: [];
       };
       invoices: {
         Row: {
@@ -250,7 +275,8 @@ export interface Database {
           total_amount: number;
           paid_amount: number;
           outstanding_balance: number;
-          status: "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
+          status:
+            "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
           created_at: string;
           updated_at: string;
         };
@@ -268,7 +294,8 @@ export interface Database {
           total_amount?: number;
           paid_amount?: number;
           outstanding_balance?: number;
-          status?: "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
+          status?:
+            "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
           created_at?: string;
           updated_at?: string;
         };
@@ -286,9 +313,11 @@ export interface Database {
           total_amount?: number;
           paid_amount?: number;
           outstanding_balance?: number;
-          status?: "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
+          status?:
+            "draft" | "confirmed" | "partially_paid" | "paid" | "cancelled";
           updated_at?: string;
         };
+        Relationships: [];
       };
       invoice_items: {
         Row: {
@@ -320,6 +349,7 @@ export interface Database {
           amount?: number;
           updated_at?: string;
         };
+        Relationships: [];
       };
       payments: {
         Row: {
@@ -357,6 +387,7 @@ export interface Database {
           status?: "pending" | "completed" | "failed" | "refunded";
           updated_at?: string;
         };
+        Relationships: [];
       };
       discounts: {
         Row: {
@@ -391,6 +422,7 @@ export interface Database {
           valid_until?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       tax_rules: {
         Row: {
@@ -416,6 +448,7 @@ export interface Database {
           is_active?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

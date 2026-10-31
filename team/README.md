@@ -6,12 +6,12 @@ This directory provides dedicated operational checklists, module contracts, and 
 
 ## 👥 Member Assignments & Ownership
 
-| Member | Primary Module | Core Focus | Feature Priority |
-| :--- | :--- | :--- | :---: |
-| **[Member 1](file:///c:/Developments/subscriptiq/team/member-1/README.md)** | **Dashboard & Frontend Shell** | Layout, sidebar, analytics cards, revenue charts, responsive UI consistency | **P0** |
-| **[Member 2](file:///c:/Developments/subscriptiq/team/member-2/README.md)** | **Products & Subscriptions** | Catalog, variants, monthly/annual plans, subscription lifecycle state transitions | **P0 & P1** |
-| **[Member 3](file:///c:/Developments/subscriptiq/team/member-3/README.md)** | **Billing & Invoicing** | Automated invoice generation, tax/discount calculation, duplicate prevention, payments | **P0** |
-| **[Member 4](file:///c:/Developments/subscriptiq/team/member-4/README.md)** | **Auth, Database & Portal** | Supabase Auth, profiles & roles (RBAC), RLS security policies, customer self-service portal | **P1 & Infra** |
+| Member                                                                      | Primary Module                 | Core Focus                                                                                  | Feature Priority |
+| :-------------------------------------------------------------------------- | :----------------------------- | :------------------------------------------------------------------------------------------ | :--------------: |
+| **[Member 1](file:///c:/Developments/subscriptiq/team/member-1/README.md)** | **Dashboard & Frontend Shell** | Layout, sidebar, analytics cards, revenue charts, responsive UI consistency                 |      **P0**      |
+| **[Member 2](file:///c:/Developments/subscriptiq/team/member-2/README.md)** | **Products & Subscriptions**   | Catalog, variants, monthly/annual plans, subscription lifecycle state transitions           |   **P0 & P1**    |
+| **[Member 3](file:///c:/Developments/subscriptiq/team/member-3/README.md)** | **Billing & Invoicing**        | Automated invoice generation, tax/discount calculation, duplicate prevention, payments      |      **P0**      |
+| **[Member 4](file:///c:/Developments/subscriptiq/team/member-4/README.md)** | **Auth, Database & Portal**    | Supabase Auth, profiles & roles (RBAC), RLS security policies, customer self-service portal |  **P1 & Infra**  |
 
 ---
 

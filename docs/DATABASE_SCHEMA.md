@@ -31,7 +31,9 @@ auth.users (Supabase Auth)
 ## 📋 The 12 Tables in Detail
 
 ### 1. `customers`
+
 Stores customer organizations and billing contacts.
+
 - `id` (UUID, PK)
 - `name` (TEXT)
 - `email` (TEXT, Unique)
@@ -40,7 +42,9 @@ Stores customer organizations and billing contacts.
 - `phone` (TEXT)
 
 ### 2. `profiles`
+
 Extends `auth.users` with application-specific RBAC roles and links to customers.
+
 - `id` (UUID, PK &rarr; `auth.users.id` ON DELETE CASCADE)
 - `email` (TEXT)
 - `full_name` (TEXT)
@@ -48,7 +52,9 @@ Extends `auth.users` with application-specific RBAC roles and links to customers
 - `customer_id` (UUID, FK &rarr; `customers.id`)
 
 ### 3. `products`
+
 Master catalog of software offerings.
+
 - `id` (UUID, PK)
 - `name` (TEXT)
 - `description` (TEXT)
@@ -56,7 +62,9 @@ Master catalog of software offerings.
 - `is_active` (BOOLEAN)
 
 ### 4. `product_variants`
+
 Configurable product tiers and add-ons.
+
 - `id` (UUID, PK)
 - `product_id` (UUID, FK &rarr; `products.id` ON DELETE CASCADE)
 - `name` (TEXT)
@@ -64,7 +72,9 @@ Configurable product tiers and add-ons.
 - `sku` (TEXT, Unique)
 
 ### 5. `plans`
+
 Billing interval models for products.
+
 - `id` (UUID, PK)
 - `product_id` (UUID, FK &rarr; `products.id` ON DELETE CASCADE)
 - `name` (TEXT)
@@ -73,7 +83,9 @@ Billing interval models for products.
 - `is_active` (BOOLEAN)
 
 ### 6. `subscriptions`
+
 Customer subscription contracts and active lifecycles.
+
 - `id` (UUID, PK)
 - `customer_id` (UUID, FK &rarr; `customers.id`)
 - `plan_id` (UUID, FK &rarr; `plans.id`)
@@ -84,7 +96,9 @@ Customer subscription contracts and active lifecycles.
 - `cancel_at_period_end` (BOOLEAN)
 
 ### 7. `subscription_items`
+
 Individual line items attached to a subscription.
+
 - `id` (UUID, PK)
 - `subscription_id` (UUID, FK &rarr; `subscriptions.id` ON DELETE CASCADE)
 - `variant_id` (UUID, FK &rarr; `product_variants.id`)
@@ -92,7 +106,9 @@ Individual line items attached to a subscription.
 - `unit_price` (NUMERIC(12,2))
 
 ### 8. `invoices`
+
 Generated billing statements with duplicate billing protection.
+
 - `id` (UUID, PK)
 - `invoice_number` (TEXT, Unique)
 - `subscription_id` (UUID, FK &rarr; `subscriptions.id`)
@@ -109,7 +125,9 @@ Generated billing statements with duplicate billing protection.
 - **Unique Constraint**: `UNIQUE(subscription_id, billing_period_start, billing_period_end)`
 
 ### 9. `invoice_items`
+
 Detailed breakdown of charges on an invoice.
+
 - `id` (UUID, PK)
 - `invoice_id` (UUID, FK &rarr; `invoices.id` ON DELETE CASCADE)
 - `description` (TEXT)
@@ -118,7 +136,9 @@ Detailed breakdown of charges on an invoice.
 - `amount` (NUMERIC(12,2))
 
 ### 10. `payments`
+
 Financial transactions recorded against invoices.
+
 - `id` (UUID, PK)
 - `payment_number` (TEXT, Unique)
 - `invoice_id` (UUID, FK &rarr; `invoices.id`)
@@ -129,7 +149,9 @@ Financial transactions recorded against invoices.
 - `status` (TEXT, CHECK: `'pending'`, `'completed'`, `'failed'`, `'refunded'`)
 
 ### 11. `discounts`
+
 Promotional codes and price reductions.
+
 - `id` (UUID, PK)
 - `code` (TEXT, Unique)
 - `discount_percent` (NUMERIC(5,2))
@@ -138,7 +160,9 @@ Promotional codes and price reductions.
 - `valid_until` (TIMESTAMPTZ)
 
 ### 12. `tax_rules`
+
 Tax rate definitions (e.g. GST 18%).
+
 - `id` (UUID, PK)
 - `name` (TEXT)
 - `rate_percent` (NUMERIC(5,2), Default 18.00)

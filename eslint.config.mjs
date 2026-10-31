@@ -15,9 +15,9 @@ const eslintConfig = [
     rules: {
       "@typescript-eslint/no-unused-vars": "warn",
       "prefer-const": "error",
-      "no-console": ["warn", { allow: ["warn", "error", "info"] }]
-    }
-  }
+      "no-console": ["warn", { allow: ["warn", "error", "info"] }],
+    },
+  },
 ];
 
 export default eslintConfig;

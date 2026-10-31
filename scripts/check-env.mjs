@@ -12,8 +12,12 @@ console.info("\n🔍 Validating SubscriptIQ Environment Configuration...\n");
 // 1. Check whether root .env.local exists
 if (!fs.existsSync(envLocalPath)) {
   console.error("❌ Error: Missing root .env.local file.");
-  console.error("👉 Please create it by running:\n   cp .env.example .env.local\n");
-  console.error("Then fill in your Supabase project credentials from the Supabase Dashboard.\n");
+  console.error(
+    "👉 Please create it by running:\n   cp .env.example .env.local\n"
+  );
+  console.error(
+    "Then fill in your Supabase project credentials from the Supabase Dashboard.\n"
+  );
   process.exit(1);
 }
 
@@ -28,7 +32,10 @@ for (const line of rawContent.split("\n")) {
   if (equalsIdx !== -1) {
     const key = trimmed.slice(0, equalsIdx).trim();
     let val = trimmed.slice(equalsIdx + 1).trim();
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
       val = val.slice(1, -1);
     }
     parsedEnv[key] = val;
@@ -40,13 +47,17 @@ let hasErrors = false;
 // 2. Check NEXT_PUBLIC_SUPABASE_URL
 const supabaseUrl = parsedEnv["NEXT_PUBLIC_SUPABASE_URL"];
 if (!supabaseUrl || supabaseUrl.trim() === "") {
-  console.error("❌ Error: NEXT_PUBLIC_SUPABASE_URL is missing or empty in .env.local.");
+  console.error(
+    "❌ Error: NEXT_PUBLIC_SUPABASE_URL is missing or empty in .env.local."
+  );
   hasErrors = true;
 } else {
   try {
     const parsedUrl = new URL(supabaseUrl);
     if (!parsedUrl.protocol.startsWith("http")) {
-      console.error("❌ Error: NEXT_PUBLIC_SUPABASE_URL must use http:// or https:// protocol.");
+      console.error(
+        "❌ Error: NEXT_PUBLIC_SUPABASE_URL must use http:// or https:// protocol."
+      );
       hasErrors = true;
     } else {
       console.info("✅ NEXT_PUBLIC_SUPABASE_URL is syntactically valid.");
@@ -60,7 +71,9 @@ if (!supabaseUrl || supabaseUrl.trim() === "") {
 // 3. Check NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 const supabaseKey = parsedEnv["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"];
 if (!supabaseKey || supabaseKey.trim() === "") {
-  console.error("❌ Error: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing or empty in .env.local.");
+  console.error(
+    "❌ Error: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing or empty in .env.local."
+  );
   hasErrors = true;
 } else {
   console.info("✅ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is present.");
@@ -68,8 +81,12 @@ if (!supabaseKey || supabaseKey.trim() === "") {
 
 // 4. Summarize and exit
 if (hasErrors) {
-  console.error("\n❌ Environment validation failed. Please correct the issues in .env.local.\n");
-  console.error("Where to find these values:\n  Supabase Dashboard -> Project Settings -> API -> Project URL & anon/public key.\n");
+  console.error(
+    "\n❌ Environment validation failed. Please correct the issues in .env.local.\n"
+  );
+  console.error(
+    "Where to find these values:\n  Supabase Dashboard -> Project Settings -> API -> Project URL & anon/public key.\n"
+  );
   process.exit(1);
 } else {
   console.info("\n🎉 Environment validation passed successfully!\n");

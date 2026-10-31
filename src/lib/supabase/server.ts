@@ -1,4 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 
@@ -6,7 +7,7 @@ import type { Database } from "@/types/database";
  * Creates a Supabase client for Server Components, Server Actions, and Route Handlers.
  * Properly handles cookie access and catches Server Component cookie write limitations deliberately.
  */
-export async function createClient() {
+export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -17,12 +18,18 @@ export async function createClient() {
     );
   }
 
-  return createServerClient<Database>(supabaseUrl, supabaseKey, {
+  const client = createServerClient<Database>(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(
+        cookiesToSet: Array<{
+          name: string;
+          value: string;
+          options: CookieOptions;
+        }>
+      ) {
         try {
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
@@ -34,4 +41,6 @@ export async function createClient() {
       },
     },
   });
+
+  return client as unknown as SupabaseClient<Database>;
 }

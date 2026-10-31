@@ -49,6 +49,7 @@ This document outlines the architectural principles, layers, data flows, and sec
 ## 2. Layer Responsibilities
 
 ### Presentation Layer (`src/app/` & `src/components/`)
+
 - Uses **Next.js App Router** with route groups:
   - `(auth)`: Login and registration views.
   - `(dashboard)`: Internal administrative and staff operational dashboard.
@@ -57,16 +58,19 @@ This document outlines the architectural principles, layers, data flows, and sec
 - Charts and analytics are powered by **Recharts**.
 
 ### Business Logic & Mutation Layer (`src/actions/` & `src/lib/billing/`)
+
 - Pure business math (18% GST tax, discount deductions, line item multiplications) resides in `src/lib/billing/calculator.ts`.
 - State mutations execute within Next.js **Server Actions** (`"use server"`).
 - Automated recurring billing runs execute through `src/lib/billing/generator.ts`.
 
 ### Data Access Layer (`src/lib/supabase/`)
+
 - Two factory patterns prevent connection leaks and ensure authorization:
   - `createBrowserClient` for interactive client-side listeners.
   - `createServerClient` for server components, actions, and routes with cookie management.
 
 ### Persistence & Security Layer (`supabase/`)
+
 - PostgreSQL database hosted on Supabase.
 - Strict **Row-Level Security (RLS)** guarantees tenant isolation.
 - Duplicate billing is intercepted at the database layer via unique constraints.
@@ -75,10 +79,10 @@ This document outlines the architectural principles, layers, data flows, and sec
 
 ## 3. Role-Based Access Control (RBAC) Matrix
 
-| Resource | Admin | Staff | Customer |
-| :--- | :---: | :---: | :---: |
-| **Products & Plans** | Create / Edit / Delete | Read Only | Read Active Only |
-| **Subscriptions** | Full Control | Create / Update | View Own Only |
-| **Invoices** | Full Control | Generate / Manage | View & Pay Own Only |
-| **Payments** | Full Control | Record Payment | View Own Receipts |
-| **System Settings** | Full Control | No Access | No Access |
+| Resource             |         Admin          |       Staff       |      Customer       |
+| :------------------- | :--------------------: | :---------------: | :-----------------: |
+| **Products & Plans** | Create / Edit / Delete |     Read Only     |  Read Active Only   |
+| **Subscriptions**    |      Full Control      |  Create / Update  |    View Own Only    |
+| **Invoices**         |      Full Control      | Generate / Manage | View & Pay Own Only |
+| **Payments**         |      Full Control      |  Record Payment   |  View Own Receipts  |
+| **System Settings**  |      Full Control      |     No Access     |      No Access      |

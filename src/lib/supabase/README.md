@@ -15,6 +15,7 @@ This directory provides the central Supabase client factories for **SubscriptIQ*
 ## 🛡️ Usage Rules & Architecture
 
 ### 1. Browser-Side Client (`client.ts`)
+
 - Use **only** in Client Components (files beginning with `"use client"`).
 - Reads `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - Never import or expose secret keys here.
@@ -31,6 +32,7 @@ export function SubscriptionList() {
 ```
 
 ### 2. Server-Side Client (`server.ts`)
+
 - Use in **Server Components**, **Server Actions**, and **Route Handlers** (`/api/*`).
 - Reads the current request's cookie jar via `next/headers`.
 - Passes the user's active session token to PostgreSQL so that RLS is enforced based on the authenticated user's ID.
@@ -46,6 +48,7 @@ export async function getActiveSubscriptions() {
 ```
 
 ### 3. Privileged Operations & Secret Keys (`SUPABASE_SECRET_KEY`)
+
 - Never use a secret/service-role key as a shortcut around fixing RLS policies.
 - If a trusted background worker (e.g. cron job billing runner) requires privileged execution, use `SUPABASE_SECRET_KEY` inside a strictly server-only module.
 - Never prefix a secret key with `NEXT_PUBLIC_`.

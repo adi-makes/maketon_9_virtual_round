@@ -6,14 +6,14 @@ This document specifies the TypeScript, React, styling, and database naming conv
 
 ## 📐 Naming Conventions
 
-| Entity | Convention | Example |
-| :--- | :--- | :--- |
-| **React Components** | `PascalCase` | `DashboardMetricCard.tsx`, `SubscriptionTable` |
-| **Files & Folders** | `kebab-case` | `check-env.mjs`, `database-schema.md` |
-| **Variables & Functions** | `camelCase` | `calculateInvoiceTotals()`, `subscriptionStatus` |
-| **Constants & Config** | `UPPER_SNAKE_CASE` | `DEFAULT_TAX_RATE`, `APP_CONFIG` |
-| **Database Tables & Columns** | `snake_case` | `subscription_items`, `billing_period_start` |
-| **TypeScript Types & Interfaces** | `PascalCase` | `Subscription`, `InvoiceStatus`, `Database` |
+| Entity                            | Convention         | Example                                          |
+| :-------------------------------- | :----------------- | :----------------------------------------------- |
+| **React Components**              | `PascalCase`       | `DashboardMetricCard.tsx`, `SubscriptionTable`   |
+| **Files & Folders**               | `kebab-case`       | `check-env.mjs`, `database-schema.md`            |
+| **Variables & Functions**         | `camelCase`        | `calculateInvoiceTotals()`, `subscriptionStatus` |
+| **Constants & Config**            | `UPPER_SNAKE_CASE` | `DEFAULT_TAX_RATE`, `APP_CONFIG`                 |
+| **Database Tables & Columns**     | `snake_case`       | `subscription_items`, `billing_period_start`     |
+| **TypeScript Types & Interfaces** | `PascalCase`       | `Subscription`, `InvoiceStatus`, `Database`      |
 
 ---
 
@@ -44,6 +44,7 @@ This document specifies the TypeScript, React, styling, and database naming conv
 ## 🧹 Code Formatting & Linting
 
 Run automated checks before committing:
+
 ```bash
 # Format code across the repo
 npm run format

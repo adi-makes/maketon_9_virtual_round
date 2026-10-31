@@ -5,6 +5,7 @@ This document details the exact responsibilities, code ownership, dependencies, 
 ---
 
 ## 👥 Member 1: Dashboard, Analytics & Shell UI
+
 - **Branch**: `feat/dashboard`
 - **Ownership**:
   - `src/app/(dashboard)/layout.tsx` (Sidebar navigation and top header)
@@ -18,6 +19,7 @@ This document details the exact responsibilities, code ownership, dependencies, 
 ---
 
 ## 👥 Member 2: Products, Plans & Subscription Lifecycles
+
 - **Branch**: `feat/subscriptions`
 - **Ownership**:
   - `src/app/(dashboard)/products/*` (Product catalog and variant pricing)
@@ -31,6 +33,7 @@ This document details the exact responsibilities, code ownership, dependencies, 
 ---
 
 ## 👥 Member 3: Billing, Invoicing & Payments
+
 - **Branch**: `feat/billing`
 - **Ownership**:
   - `src/lib/billing/calculator.ts` (18% tax and discount calculations)
@@ -46,6 +49,7 @@ This document details the exact responsibilities, code ownership, dependencies, 
 ---
 
 ## 👥 Member 4: Authentication, Database & Customer Portal
+
 - **Branch**: `feat/auth-database`
 - **Ownership**:
   - `supabase/migrations/*` (12 PostgreSQL tables and RLS)
