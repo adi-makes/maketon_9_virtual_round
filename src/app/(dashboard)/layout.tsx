@@ -19,8 +19,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  let userEmail = "admin@subscriptiq.com";
-  let userRole = "admin";
+  // Default to non-privileged staff state; populated dynamically from auth session or middleware
+  let userEmail = "";
+  let userRole = "staff";
 
   // Fast-path: read verified user data passed from middleware headers in 0.00ms
   const reqHeaders = await headers();
@@ -29,7 +30,8 @@ export default async function DashboardLayout({
 
   if (headerEmail) {
     userEmail = headerEmail;
-    userRole = headerRole || "admin";
+    // Derive role with fallback to email prefix check for admin designation
+    userRole = headerRole || (userEmail.toLowerCase().startsWith("admin@") ? "admin" : "staff");
   } else {
     try {
       const supabase = await createClient();
@@ -38,10 +40,11 @@ export default async function DashboardLayout({
       } = await supabase.auth.getUser();
 
       if (user) {
-        userEmail = user.email || userEmail;
+        userEmail = user.email || "";
+        // Extract role from user_metadata with safe email-based fallback
         userRole =
           user.user_metadata?.role ||
-          (user.email?.startsWith("staff@") ? "staff" : "admin");
+          (user.email?.toLowerCase().startsWith("admin@") ? "admin" : "staff");
       }
     } catch {
       // Graceful fallback for local development without credentials
