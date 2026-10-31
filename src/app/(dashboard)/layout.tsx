@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 import {
@@ -21,20 +22,30 @@ export default async function DashboardLayout({
   let userEmail = "admin@subscriptiq.com";
   let userRole = "admin";
 
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  // Fast-path: read verified user data passed from middleware headers in 0.00ms
+  const reqHeaders = await headers();
+  const headerEmail = reqHeaders.get("x-user-email");
+  const headerRole = reqHeaders.get("x-user-role");
 
-    if (user) {
-      userEmail = user.email || userEmail;
-      userRole =
-        user.user_metadata?.role ||
-        (user.email?.startsWith("staff@") ? "staff" : "admin");
+  if (headerEmail) {
+    userEmail = headerEmail;
+    userRole = headerRole || "admin";
+  } else {
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        userEmail = user.email || userEmail;
+        userRole =
+          user.user_metadata?.role ||
+          (user.email?.startsWith("staff@") ? "staff" : "admin");
+      }
+    } catch {
+      // Graceful fallback for local development without credentials
     }
-  } catch {
-    // Graceful fallback for local development without credentials
   }
 
   const navLinks = [
@@ -75,6 +86,7 @@ export default async function DashboardLayout({
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   className="flex items-center space-x-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-900 hover:text-white"
                 >
                   <Icon className="h-4 w-4 text-slate-400" />

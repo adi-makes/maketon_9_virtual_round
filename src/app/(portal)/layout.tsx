@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 import { Building2, User } from "lucide-react";
@@ -11,17 +12,24 @@ export default async function PortalLayout({
   let customerEmail = "customer@acme.com";
   const companyName = "Acme Corporation";
 
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const reqHeaders = await headers();
+  const headerEmail = reqHeaders.get("x-user-email");
 
-    if (user) {
-      customerEmail = user.email || customerEmail;
+  if (headerEmail) {
+    customerEmail = headerEmail;
+  } else {
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        customerEmail = user.email || customerEmail;
+      }
+    } catch {
+      // Fallback
     }
-  } catch {
-    // Fallback
   }
 
   return (

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus, ActionResponse } from "@/types";
 import type { Database } from "@/types/database";
@@ -28,6 +29,12 @@ export type {
   SubscriptionInvoiceRecord,
 };
 
+async function getDbClient() {
+  const admin = getAdminClient();
+  if (admin) return admin;
+  return await createClient();
+}
+
 function safeRevalidate(path: string) {
   try {
     revalidatePath(path);
@@ -49,7 +56,7 @@ export async function transitionSubscriptionStatus(
   nextStatus: SubscriptionStatus
 ): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     // 1. Fetch current subscription status, period, and full plan configuration
     const { data: sub, error: fetchError } = await supabase
@@ -156,7 +163,7 @@ export async function toggleCancelAtPeriodEnd(
   cancelAtPeriodEnd: boolean
 ): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     // Check plan renewal permissions
     const { data: sub } = await supabase
@@ -223,7 +230,7 @@ export async function createSubscription(
   input: CreateSubscriptionInput
 ): Promise<ActionResponse<{ id: string }>> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     if (!input.customerId) {
       return { success: false, error: "Validation error: Customer is required." };
@@ -324,7 +331,7 @@ export async function autoCloseExpiredSubscriptionsAction(): Promise<
   ActionResponse<{ closedCount: number; closedIds: string[] }>
 > {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
     const now = new Date().toISOString();
 
     // Query active subscriptions whose current_period_end has passed

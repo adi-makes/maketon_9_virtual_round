@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { isServiceRoleConfigured } from "@/lib/supabase/admin";
 import { getStaffMembers } from "@/actions/staff";
@@ -16,32 +17,44 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function StaffManagementPage() {
-  const supabase = await createClient();
+  const reqHeaders = await headers();
+  const headerRole = reqHeaders.get("x-user-role");
+  const headerId = reqHeaders.get("x-user-id");
+  const headerEmail = reqHeaders.get("x-user-email");
 
-  // 1. Verify user session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let currentUserId = headerId;
+  let currentUserEmail = headerEmail || "admin@subscriptiq.com";
+  let currentUserFullName = "System Administrator";
 
-  if (!user) {
-    redirect("/login");
-  }
+  // If not already verified as admin by middleware, verify via Supabase client
+  if (headerRole !== "admin" || !headerId) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  // 2. Fetch role and verify Admin privilege
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+    if (!user) {
+      redirect("/login");
+    }
 
-  const userRole =
-    profile?.role ||
-    user.user_metadata?.role ||
-    (user.email?.toLowerCase().startsWith("admin@") ? "admin" : "staff");
+    currentUserId = user.id;
+    currentUserEmail = user.email || currentUserEmail;
+    currentUserFullName = user.user_metadata?.full_name || currentUserFullName;
 
-  // Only administrators can manage team credentials
-  if (userRole !== "admin") {
-    redirect("/dashboard");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const userRole =
+      profile?.role ||
+      user.user_metadata?.role ||
+      (user.email?.toLowerCase().startsWith("admin@") ? "admin" : "staff");
+
+    if (userRole !== "admin") {
+      redirect("/dashboard");
+    }
   }
 
   // 3. Fetch team members and check environment configuration
@@ -54,11 +67,11 @@ export default async function StaffManagementPage() {
       ? staffList
       : [
           {
-            id: user.id,
-            email: user.email || "admin@subscriptiq.com",
-            fullName: user.user_metadata?.full_name || "System Administrator",
+            id: currentUserId || "admin-fallback",
+            email: currentUserEmail,
+            fullName: currentUserFullName,
             role: "admin" as const,
-            createdAt: user.created_at || new Date().toISOString(),
+            createdAt: new Date().toISOString(),
           },
         ];
 

@@ -32,9 +32,10 @@ export default function NewProductPage() {
   };
 
   const handleAddOdooVariant = () => {
+    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     setVariants([
       ...variants,
-      { name: "Odoo Variant", price_adjustment: 560, sku: "VAR-ODOO-560" },
+      { name: "Odoo Variant", price_adjustment: 560, sku: `VAR-ODOO-${randomSuffix}` },
     ]);
   };
 

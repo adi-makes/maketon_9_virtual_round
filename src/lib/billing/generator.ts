@@ -8,6 +8,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { calculateInvoice, type LineItemInput } from "./calculations";
 import { getActiveTaxRules } from "./tax-service";
 import type { BillingRunResult } from "@/types";
@@ -19,7 +20,8 @@ function generateRunInvoiceNumber(): string {
 }
 
 export async function runBillingCycle(): Promise<BillingRunResult> {
-  const supabase = await createClient();
+  const admin = getAdminClient();
+  const supabase = admin || (await createClient());
   const now = new Date();
   const nowIso = now.toISOString();
 

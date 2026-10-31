@@ -15,6 +15,8 @@ import { PortalPayButton } from "@/components/portal/PortalPayButton";
 
 export const dynamic = "force-dynamic";
 
+import { headers } from "next/headers";
+
 export default async function PortalPage() {
   let subscriptions: any[] = [];
   let invoices: any[] = [];
@@ -23,20 +25,26 @@ export default async function PortalPage() {
   try {
     const supabase = await createClient();
 
-    // 1. Get current logged in customer
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // 1. Get current logged in customer (fast-path from headers)
+    const reqHeaders = await headers();
+    let userId = reqHeaders.get("x-user-id");
 
     let customerId: string | null = null;
     const admin = getAdminClient();
 
-    if (user) {
+    if (!userId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      userId = user?.id || null;
+    }
+
+    if (userId) {
       // First try standard client, fallback to admin client to read profile linkage
       const profileQuery = (admin || supabase)
         .from("profiles")
         .select("customer_id, full_name, customer:customers(name, company_name)")
-        .eq("id", user.id)
+        .eq("id", userId)
         .single();
 
       const { data: profile } = await profileQuery;

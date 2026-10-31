@@ -180,9 +180,10 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
   };
 
   const handleQuickAddOdoo = () => {
+    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     setVarName("Odoo Variant");
     setVarPriceAdj(560);
-    setVarSku("VAR-ODOO-560");
+    setVarSku(`VAR-ODOO-${randomSuffix}`);
   };
 
   const handleDeleteVariant = async (variantId: string) => {

@@ -6,7 +6,8 @@ import {
   Calendar,
   RefreshCw,
   ChevronDown,
-  UserPlus,
+  PackagePlus,
+  CreditCard,
   Receipt,
   BarChart3,
   Plus,
@@ -192,11 +193,18 @@ export function DashboardPage({ initialMetrics }: DashboardPageProps = {}) {
                   onClick={() => setQuickActionsOpen(false)}
                 >
                   <Link
-                    href="/customers"
+                    href="/subscriptions/new"
                     className="flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs"
                   >
-                    <UserPlus size={16} className="text-primary" />
-                    <span>View Customers</span>
+                    <PlusCircle size={16} className="text-primary" />
+                    <span>New Subscription</span>
+                  </Link>
+                  <Link
+                    href="/products/new"
+                    className="flex items-center gap-2 px-3 py-2 font-label-md text-label-md text-on-surface hover:bg-surface-container text-xs"
+                  >
+                    <PackagePlus size={16} className="text-primary" />
+                    <span>Add Product</span>
                   </Link>
                   <Link
                     href="/invoices"
@@ -246,45 +254,25 @@ export function DashboardPage({ initialMetrics }: DashboardPageProps = {}) {
           </div>
         </div>
 
-        {/* Action Status Banner */}
+        {/* Live Billing Run Notification Banner */}
         {billingMessage && (
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium shadow-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
-              <span>{billingMessage}</span>
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest border border-primary/30 shadow-sm text-sm">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0" />
+              <span className="font-label-md text-on-surface font-medium">{billingMessage}</span>
             </div>
             <button
               onClick={() => setBillingMessage(null)}
-              className="text-emerald-600 hover:text-emerald-800 p-1"
+              className="text-xs text-on-surface-variant hover:text-on-surface font-semibold px-2 py-1 rounded hover:bg-surface-container transition-colors"
               type="button"
             >
-              <X size={14} />
+              Dismiss
             </button>
           </div>
         )}
 
         {/* Action Shortcut Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-space-sm">
-          <Link
-            href="/customers"
-            className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
-                <UserPlus size={20} />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  Customers
-                </span>
-                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  {totalCustomersCount} registered
-                </span>
-              </div>
-            </div>
-            <ArrowRight size={18} className="text-on-surface-variant group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-sm">
           <Link
             href="/subscriptions/new"
             className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
@@ -306,6 +294,26 @@ export function DashboardPage({ initialMetrics }: DashboardPageProps = {}) {
           </Link>
 
           <Link
+            href="/products/new"
+            className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+                <PackagePlus size={20} />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
+                  Add Product
+                </span>
+                <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
+                  Catalog new product &amp; variants
+                </span>
+              </div>
+            </div>
+            <ArrowRight size={18} className="text-on-surface-variant group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+
+          <Link
             href="/invoices"
             className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
           >
@@ -315,10 +323,10 @@ export function DashboardPage({ initialMetrics }: DashboardPageProps = {}) {
               </div>
               <div className="flex flex-col">
                 <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  Invoices
+                  Manage Invoices
                 </span>
                 <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  {overdueInvoicesCount > 0 ? `${overdueInvoicesCount} overdue` : "Ledger & balances"}
+                  Review &amp; reconcile billing runs
                 </span>
               </div>
             </div>
@@ -326,19 +334,19 @@ export function DashboardPage({ initialMetrics }: DashboardPageProps = {}) {
           </Link>
 
           <Link
-            href="/payments"
+            href="/plans"
             className="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-low shadow-sm transition-all text-left border border-surface-container-high/20"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
-                <Wallet size={20} />
+                <CreditCard size={20} />
               </div>
               <div className="flex flex-col">
                 <span className="font-label-md text-label-md font-semibold text-on-surface text-sm">
-                  Payments
+                  Configure Plans
                 </span>
                 <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  {formatINR(totalRevenue)} settled
+                  Cadence, limits &amp; closure rules
                 </span>
               </div>
             </div>

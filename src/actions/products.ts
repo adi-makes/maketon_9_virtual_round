@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import type { ActionResponse, BillingFrequency, ProductType } from "@/types";
 import type { Database } from "@/types/database";
@@ -10,6 +11,12 @@ import {
   parsePlan,
   parseProduct,
 } from "@/lib/plans/config";
+
+async function getDbClient() {
+  const admin = getAdminClient();
+  if (admin) return admin;
+  return await createClient();
+}
 
 function safeRevalidate(path: string) {
   try {
@@ -91,7 +98,7 @@ export async function createProduct(
   input: CreateProductInput
 ): Promise<ActionResponse<{ id: string }>> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     if (!input.name || input.name.trim() === "") {
       return { success: false, error: "Validation error: Product name is required." };
@@ -159,6 +166,12 @@ export async function createProduct(
         .insert(variantsPayload);
 
       if (variantError) {
+        if (variantError.code === "23505" || variantError.message.includes("product_variants_sku_key")) {
+          return {
+            success: false,
+            error: `Product created, but a variant SKU is already in use by another variant. Please ensure variant SKUs are unique, or leave them empty.`,
+          };
+        }
         return {
           success: false,
           error: `Product created, but variants failed: ${variantError.message}`,
@@ -186,7 +199,7 @@ export async function updateProduct(
   input: UpdateProductInput
 ): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     // Check negative numbers
     if (input.base_price !== undefined && Number(input.base_price) < 0) {
@@ -247,7 +260,7 @@ export async function updateProduct(
  */
 export async function deleteProduct(id: string): Promise<ActionResponse<{ action: "deleted" | "deactivated" }>> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     // Check if plans associated with this product have active or draft subscriptions
     const { data: plans } = await supabase
@@ -310,17 +323,18 @@ export async function createVariant(
   input: CreateVariantInput
 ): Promise<ActionResponse<{ id: string }>> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     if (!input.name || input.name.trim() === "") {
       return { success: false, error: "Validation error: Variant name is required." };
     }
 
+    const sku = input.sku?.trim() || null;
     const variantPayload: VariantInsert = {
       product_id: input.product_id,
       name: input.name.trim(),
       price_adjustment: Number(input.price_adjustment) || 0,
-      sku: input.sku?.trim() || null,
+      sku: sku,
     };
 
     const { data, error } = await supabase
@@ -330,6 +344,12 @@ export async function createVariant(
       .single();
 
     if (error || !data) {
+      if (error?.code === "23505" || error?.message?.includes("product_variants_sku_key")) {
+        return {
+          success: false,
+          error: `Validation error: SKU '${sku}' is already in use by another variant. SKUs must be unique, or you can leave it blank.`,
+        };
+      }
       return { success: false, error: error?.message || "Failed to create variant." };
     }
 
@@ -349,7 +369,7 @@ export async function deleteVariant(
   productId: string
 ): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     const { error } = await supabase
       .from("product_variants")
@@ -377,7 +397,7 @@ export async function createPlan(
   input: CreatePlanInput
 ): Promise<ActionResponse<{ id: string }>> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     if (!input.name || input.name.trim() === "") {
       return { success: false, error: "Validation error: Plan name is required." };
@@ -465,7 +485,7 @@ export async function updatePlan(
   input: UpdatePlanInput
 ): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
+    const supabase = await getDbClient();
 
     // Fetch existing plan to merge configuration
     const { data: existing, error: fetchErr } = await supabase
