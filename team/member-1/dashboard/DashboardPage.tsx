@@ -35,6 +35,8 @@ import {
   mockPlans,
   mockRevenueStats,
 } from "../mockData";
+import { RevenueTrendChart } from "../charts/RevenueTrendChart";
+import { SubscriptionGrowthChart } from "../charts/SubscriptionGrowthChart";
 
 export function DashboardPage() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -541,117 +543,13 @@ export function DashboardPage() {
               </div>
             </div>
 
-            {/* SVG Visual Chart */}
-            <div className="relative w-full h-72 py-2">
-              <svg
-                className="w-full h-full overflow-visible"
-                preserveAspectRatio="none"
-                viewBox="0 0 760 260"
-              >
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.28" />
-                    <stop offset="90%" stopColor="#4f46e5" stopOpacity="0.01" />
-                  </linearGradient>
-                  <linearGradient id="secondaryGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#006693" stopOpacity="0.20" />
-                    <stop offset="100%" stopColor="#006693" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Grid guidelines & axis markers */}
-                <line stroke="#eaedff" strokeDasharray="3 3" strokeWidth="1" x1="40" x2="740" y1="20" y2="20" />
-                <text className="fill-outline font-mono-data-sm text-[11px]" textAnchor="end" x="32" y="24">
-                  14L
-                </text>
-                <line stroke="#eaedff" strokeDasharray="3 3" strokeWidth="1" x1="40" x2="740" y1="75" y2="75" />
-                <text className="fill-outline font-mono-data-sm text-[11px]" textAnchor="end" x="32" y="79">
-                  10.5L
-                </text>
-                <line stroke="#eaedff" strokeDasharray="3 3" strokeWidth="1" x1="40" x2="740" y1="130" y2="130" />
-                <text className="fill-outline font-mono-data-sm text-[11px]" textAnchor="end" x="32" y="134">
-                  7.0L
-                </text>
-                <line stroke="#eaedff" strokeDasharray="3 3" strokeWidth="1" x1="40" x2="740" y1="185" y2="185" />
-                <text className="fill-outline font-mono-data-sm text-[11px]" textAnchor="end" x="32" y="189">
-                  3.5L
-                </text>
-                <line stroke="#dae2fd" strokeWidth="1" x1="40" x2="740" y1="230" y2="230" />
-                <text className="fill-outline font-mono-data-sm text-[11px]" textAnchor="end" x="32" y="234">
-                  0
-                </text>
-
-                {/* Gradient Polygons */}
-                <polygon
-                  fill="url(#revenueGradient)"
-                  points="50,230 50,195 125,185 200,165 275,150 350,140 425,115 500,90 575,80 650,60 725,35 725,230"
-                />
-                <polygon
-                  fill="url(#secondaryGradient)"
-                  points="50,230 50,215 125,210 200,195 275,188 350,175 425,160 500,145 575,138 650,120 725,105 725,230"
-                />
-
-                {/* Trajectory Stroke Lines */}
-                <path
-                  d="M 50 215 L 125 210 L 200 195 L 275 188 L 350 175 L 425 160 L 500 145 L 575 138 L 650 120 L 725 105"
-                  fill="none"
-                  stroke="#006693"
-                  strokeLinecap="round"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M 50 195 L 125 185 L 200 165 L 275 150 L 350 140 L 425 115 L 500 90 L 575 80 L 650 60 L 725 35"
-                  fill="none"
-                  stroke="#3525cd"
-                  strokeLinecap="round"
-                  strokeWidth="2.5"
-                />
-
-                {/* Point Circles */}
-                <circle cx="50" cy="195" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="125" cy="185" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="200" cy="165" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="275" cy="150" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="350" cy="140" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="425" cy="115" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="500" cy="90" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="575" cy="80" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="650" cy="60" fill="#ffffff" r="3.5" stroke="#3525cd" strokeWidth="2" />
-                <circle cx="725" cy="35" fill="#4f46e5" r="5" stroke="#ffffff" strokeWidth="2" />
-
-                {/* Month labels */}
-                {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"].map((m, idx) => (
-                  <text
-                    key={m}
-                    className={`font-mono-data-sm text-[11px] ${
-                      idx === 9 ? "fill-primary font-bold" : "fill-outline"
-                    }`}
-                    textAnchor="middle"
-                    x={50 + idx * 75}
-                    y="248"
-                  >
-                    {m}
-                  </text>
-                ))}
-              </svg>
-
-              {/* Peak Floating Tooltip */}
-              <div className="absolute right-4 top-2 bg-inverse-surface text-inverse-on-surface p-2.5 rounded-lg shadow-xl pointer-events-none transform -translate-y-2">
-                <div className="flex items-center justify-between gap-3 text-xs mb-1">
-                  <span className="font-mono-data-sm text-secondary-fixed-dim">Oct Peak Settled</span>
-                  <span className="font-mono-data-sm font-bold text-white">{formatINR(totalRevenue)}</span>
-                </div>
-                <div className="flex flex-col text-[11px] text-surface-container-highest space-y-0.5">
-                  <div className="flex justify-between gap-2">
-                    <span>Active MRR:</span>
-                    <span className="text-white font-mono-data-sm">{formatINR(latestMRR)}</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span>Active Subscriptions:</span>
-                    <span className="text-white font-mono-data-sm">{activeSubscriptionsCount}</span>
-                  </div>
-                </div>
-              </div>
+            {/* Recharts Revenue Trend Area Chart */}
+            <div className="py-2">
+              <RevenueTrendChart
+                data={mockRevenueStats}
+                metricKey={selectedMetricView === "revenue" ? "net_revenue" : selectedMetricView}
+                height={288}
+              />
             </div>
 
             {/* Chart Legend & Accuracy */}
@@ -677,15 +575,15 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* Plan Distribution (4 cols) */}
+          {/* Subscription Growth & Plan Distribution (4 cols) */}
           <div className="lg:col-span-4 bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between border border-surface-container-high/20">
             <div className="flex items-center justify-between pb-space-sm">
               <div>
                 <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface text-lg">
-                  Plan Distribution
+                  Subscription Growth
                 </h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant text-xs">
-                  {totalSubsCount} active accounts by life-cycle
+                  Cohort additions &amp; {totalSubsCount} total contracts
                 </p>
               </div>
               <button
@@ -697,59 +595,9 @@ export function DashboardPage() {
               </button>
             </div>
 
-            {/* Circular Donut Diagram */}
-            <div className="flex items-center justify-center my-2 relative">
-              <svg className="w-48 h-48 -rotate-90 transform" viewBox="0 0 160 160">
-                <circle cx="80" cy="80" fill="transparent" r="62" stroke="#eaedff" strokeWidth="16" />
-                <circle
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="62"
-                  stroke="#4f46e5"
-                  strokeDasharray="286.2 389.5"
-                  strokeDashoffset="0"
-                  strokeWidth="16"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="62"
-                  stroke="#0ea5e9"
-                  strokeDasharray="59.6 389.5"
-                  strokeDashoffset="-286.2"
-                  strokeWidth="16"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="62"
-                  stroke="#94a3b8"
-                  strokeDasharray="25.3 389.5"
-                  strokeDashoffset="-345.8"
-                  strokeWidth="16"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  fill="transparent"
-                  r="62"
-                  stroke="#f43f5e"
-                  strokeDasharray="18.4 389.5"
-                  strokeDashoffset="-371.1"
-                  strokeWidth="16"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="font-mono-data-lg text-mono-data-lg font-bold text-on-surface tracking-tight text-2xl">
-                  {totalSubsCount}
-                </span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold text-[10px]">
-                  Total Subscriptions
-                </span>
-              </div>
+            {/* Recharts Subscription Growth Bar Chart */}
+            <div className="my-2">
+              <SubscriptionGrowthChart data={mockRevenueStats} height={190} />
             </div>
 
             {/* Legend with Progress Bars */}
