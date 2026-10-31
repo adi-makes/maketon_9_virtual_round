@@ -4,7 +4,7 @@
 
 export const APP_CONFIG = {
   name: "SubscriptIQ",
-  company: "Brightloop Software",
+  company: "SubscriptIQ",
   description: "Subscription & Revenue Lifecycle Management System",
   currency: {
     code: "INR",

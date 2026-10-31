@@ -48,7 +48,9 @@ export async function updateSession(request: NextRequest) {
   const { nextUrl } = request;
   const isAuthRoute =
     nextUrl.pathname.startsWith("/login") ||
-    nextUrl.pathname.startsWith("/register");
+    nextUrl.pathname.startsWith("/register") ||
+    nextUrl.pathname.startsWith("/forgot-password") ||
+    nextUrl.pathname.startsWith("/reset-password");
   const isDashboardRoute =
     nextUrl.pathname.startsWith("/dashboard") ||
     nextUrl.pathname.startsWith("/products") ||
@@ -72,9 +74,10 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // 1. If user is logged in and visits login/register, redirect them to their home view
+  // 1. If user is logged in and visits login/register/forgot-password, redirect them to their home view
+  // (allow /reset-password so recovery session can update password)
   if (isAuthRoute) {
-    if (user) {
+    if (user && !nextUrl.pathname.startsWith("/reset-password")) {
       const url = request.nextUrl.clone();
       url.pathname = role === "customer" ? "/portal" : "/dashboard";
       return NextResponse.redirect(url);

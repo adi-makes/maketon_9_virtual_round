@@ -1,7 +1,7 @@
 import type { SubscriptionStatus } from "@/types";
 
 /**
- * Valid state transitions for Brightloop Software subscription lifecycles.
+ * Valid state transitions for SubscriptIQ subscription lifecycles.
  */
 export const ALLOWED_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
   draft: ["quotation", "confirmed"],

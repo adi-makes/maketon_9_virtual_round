@@ -12,6 +12,10 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`);
     }
+
+    if (next.includes("reset-password")) {
+      return NextResponse.redirect(`${origin}/reset-password?error=expired`);
+    }
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth-code-error`);

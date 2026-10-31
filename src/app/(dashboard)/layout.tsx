@@ -106,7 +106,7 @@ export default async function DashboardLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-8">
           <div className="text-sm text-slate-500">
-            Internal Operations Portal &bull; Brightloop Software
+            Internal Operations Portal &bull; SubscriptIQ
           </div>
           <div className="flex items-center space-x-3">
             <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">

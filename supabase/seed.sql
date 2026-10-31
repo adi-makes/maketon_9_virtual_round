@@ -11,7 +11,7 @@ ON CONFLICT (id) DO NOTHING;
 -- 2. Demo Products
 INSERT INTO public.products (id, name, description, base_price, is_active)
 VALUES
-  ('22222222-2222-2222-2222-222222222221', 'Brightloop Cloud Suite', 'Enterprise cloud subscription management platform', 1000.00, true),
+  ('22222222-2222-2222-2222-222222222221', 'SubscriptIQ Cloud Suite', 'Enterprise cloud subscription management platform', 1000.00, true),
   ('22222222-2222-2222-2222-222222222222', 'Analytics Pro Addon', 'Advanced revenue recovery and recurring metrics dashboard', 500.00, true)
 ON CONFLICT (id) DO NOTHING;
 

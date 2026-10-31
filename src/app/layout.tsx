@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "SubscriptIQ — Subscription Management System",
   description:
-    "Enterprise-grade subscription and billing management platform for Brightloop Software.",
+    "Enterprise-grade subscription and billing management platform.",
 };
 
 export default function RootLayout({

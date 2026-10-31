@@ -1,6 +1,6 @@
 # SubscriptIQ — Subscription & Revenue Lifecycle Management System
 
-Built for **Brightloop Software** | 4-Member Hackathon Project
+Built as an Enterprise Hackathon Project | 4-Member Team
 
 SubscriptIQ is a production-grade subscription management and recurring billing platform built using **Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Recharts, and Supabase (PostgreSQL & Supabase Auth)**.
 

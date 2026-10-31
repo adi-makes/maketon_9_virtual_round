@@ -74,7 +74,7 @@ export default async function StaffManagementPage() {
             Staff & Team Management
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Provision staff operators and manage operational credentials for Brightloop Software.
+            Provision staff operators and manage operational credentials.
           </p>
         </div>
         <CreateStaffDialog isConfigured={isConfigured} />
@@ -124,7 +124,7 @@ export default async function StaffManagementPage() {
             {displayList.length}
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Registered Brightloop operators
+            Registered team operators
           </p>
         </div>
 
@@ -172,7 +172,7 @@ export default async function StaffManagementPage() {
             Authorized Personnel Directory
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            All users with internal access to Brightloop Software&apos;s SubscriptIQ management portal.
+            All users with internal access to the SubscriptIQ management portal.
           </p>
         </div>
 
@@ -219,7 +219,7 @@ export default async function StaffManagementPage() {
                         </div>
                         <div>
                           <p className="font-semibold text-slate-900 dark:text-white">
-                            {member.fullName || "Brightloop Team Member"}
+                            {member.fullName || "Team Member"}
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                             {member.email}

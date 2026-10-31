@@ -1,6 +1,6 @@
 # SubscriptIQ — System Architecture
 
-This document outlines the architectural principles, layers, data flows, and security model for **SubscriptIQ — Subscription Management System** built for **Brightloop Software**.
+This document outlines the architectural principles, layers, data flows, and security model for **SubscriptIQ — Subscription Management System**.
 
 ---
 

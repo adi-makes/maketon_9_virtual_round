@@ -16,13 +16,32 @@ export const dynamic = "force-dynamic";
 export default async function PortalPage() {
   let subscriptions: any[] = [];
   let invoices: any[] = [];
-  const customerName = "Acme Corporation";
+  let customerName = "Valued Customer";
 
   try {
     const supabase = await createClient();
 
     // 1. Get current logged in customer
-    await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, customer:customers(name, company_name)")
+        .eq("id", user.id)
+        .single();
+
+      const custData = profile?.customer as unknown as { name?: string; company_name?: string } | null;
+      if (custData?.company_name) {
+        customerName = custData.company_name;
+      } else if (custData?.name) {
+        customerName = custData.name;
+      } else if (profile?.full_name) {
+        customerName = profile.full_name;
+      }
+    }
 
     // 2. Query subscriptions
     const { data: subsData } = await supabase
@@ -114,7 +133,7 @@ export default async function PortalPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">
-                        {sub.plans?.products?.name || "Brightloop Cloud Suite"}
+                        {sub.plans?.products?.name || "Enterprise Cloud Suite"}
                       </h3>
                       <p className="mt-0.5 text-xs text-slate-500">
                         {sub.plans?.name || "Monthly Standard Plan"}

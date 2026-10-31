@@ -68,7 +68,7 @@ export default async function PortalLayout({
       </main>
 
       <footer className="border-t bg-white py-4 text-center text-xs text-slate-400">
-        SubscriptIQ Customer Portal &bull; Powered by Brightloop Software
+        SubscriptIQ Customer Portal &bull; Self-Service Billing
       </footer>
     </div>
   );
