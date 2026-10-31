@@ -33,16 +33,9 @@ export default function HomePage() {
             </Link>
             <Link
               href="/register"
-              className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+              className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
             >
               Sign Up
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center space-x-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
-            >
-              <span>Dashboard</span>
-              <ArrowRight className="ml-1 h-4 w-4" />
             </Link>
           </div>
         </div>
@@ -63,17 +56,17 @@ export default function HomePage() {
 
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                href="/dashboard"
+                href="/login"
                 className="flex w-full items-center justify-center space-x-2 rounded-lg bg-indigo-600 px-6 py-3 font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 sm:w-auto"
               >
-                <span>Open Starter Dashboard</span>
+                <span>Sign In to Platform</span>
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/register"
                 className="flex w-full items-center justify-center space-x-2 rounded-lg border border-slate-300 bg-white px-6 py-3 font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:w-auto"
               >
-                <span>Sign Up as Customer</span>
+                <span>Create an Account</span>
               </Link>
             </div>
           </div>
@@ -148,8 +141,6 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-
-
         </div>
       </main>
 
@@ -158,11 +149,11 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
           <p>© 2026 SubscriptIQ. All rights reserved.</p>
           <div className="flex items-center space-x-6">
-            <Link href="/dashboard" className="hover:text-slate-900">
-              Internal Dashboard
+            <Link href="/login" className="hover:text-slate-900">
+              Sign In
             </Link>
             <Link href="/register" className="hover:text-slate-900">
-              Customer Sign Up
+              Sign Up
             </Link>
           </div>
         </div>
