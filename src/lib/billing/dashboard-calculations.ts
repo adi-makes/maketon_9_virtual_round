@@ -3,6 +3,8 @@
  * Pure, isolated financial calculation functions for the executive dashboard.
  */
 
+import { cleanPlanName } from "@/lib/subscriptions/display";
+
 /**
  * Converts a currency value in INR (e.g. 123.45) to integer paise (12345).
  */
@@ -240,7 +242,7 @@ export function aggregateDashboardMetrics(params: {
       customer_name: displayName,
       customer_email: rawCustomer?.email || "billing@client.com",
       customer_initials: initials || "CU",
-      plan_name: rawPlan?.name || "Standard Plan",
+      plan_name: cleanPlanName(rawPlan?.name),
       start_date: sub.start_date,
       next_billing_date: sub.next_billing_date,
       amount: fromPaise(recurringPaise),

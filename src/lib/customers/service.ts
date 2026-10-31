@@ -1,4 +1,5 @@
 import type { CustomerRow, CustomerDetailRecord, CustomerBillingAddress, CustomerDirectoryMetrics } from "./types";
+import { cleanPlanName } from "@/lib/subscriptions/display";
 
 // Palette generator for initials avatar
 const COLOR_CLASSES = [
@@ -104,7 +105,7 @@ export function buildCustomerDetailRecord(
       status: sub.status,
       start_date: sub.start_date,
       next_billing_date: sub.next_billing_date || null,
-      plan_name: rawPlan?.name || "Standard Plan",
+      plan_name: cleanPlanName(rawPlan?.name),
       billing_frequency: frequency,
       amount: subAmount,
     };
