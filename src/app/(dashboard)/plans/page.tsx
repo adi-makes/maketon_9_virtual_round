@@ -5,7 +5,7 @@ import { parsePlan, parseProduct } from "@/lib/plans/config";
 export const dynamic = "force-dynamic";
 
 export default async function PlansPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [{ data: plans }, { data: products }] = await Promise.all([
     supabase
@@ -22,7 +22,7 @@ export default async function PlansPage() {
       .order("name", { ascending: true }),
   ]);
 
-  const sanitizedPlans = (plans || []).map((rawPl) => {
+  const sanitizedPlans = (plans || []).map((rawPl: any) => {
     const cfg = parsePlan(rawPl as Parameters<typeof parsePlan>[0]);
     const rawProd = Array.isArray(rawPl.product) ? rawPl.product[0] : rawPl.product;
     const prod = rawProd ? parseProduct(rawProd as Parameters<typeof parseProduct>[0]) : null;
@@ -48,7 +48,7 @@ export default async function PlansPage() {
     };
   });
 
-  const sanitizedProducts = (products || []).map((p) => {
+  const sanitizedProducts = (products || []).map((p: any) => {
     const parsed = parseProduct(p as Parameters<typeof parseProduct>[0]);
     return {
       id: parsed.id,
@@ -58,6 +58,6 @@ export default async function PlansPage() {
   });
 
   return (
-    <PlanListClient plans={sanitizedPlans} products={sanitizedProducts} />
+    <PlanListClient initialPlans={sanitizedPlans} products={sanitizedProducts} />
   );
 }

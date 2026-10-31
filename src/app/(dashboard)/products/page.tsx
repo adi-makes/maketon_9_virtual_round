@@ -6,7 +6,7 @@ import { parseProduct } from "@/lib/plans/config";
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [
     { data: products, error },
@@ -81,10 +81,10 @@ export default async function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-sm">
-              {products?.map((rawP) => {
+              {(products as any[])?.map((rawP: any) => {
                 const p = parseProduct(rawP as Parameters<typeof parseProduct>[0]);
-                const variants = (allVariants || []).filter((v) => v.product_id === p.id);
-                const plans = (allPlans || []).filter((pl) => pl.product_id === p.id);
+                const variants = ((allVariants as any[]) || []).filter((v: any) => v.product_id === p.id);
+                const plans = ((allPlans as any[]) || []).filter((pl: any) => pl.product_id === p.id);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4">
