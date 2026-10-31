@@ -40,8 +40,7 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser().
+  // IMPORTANT: Avoid writing any logic between createServerClient and supabase.auth.getUser()
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -60,9 +59,19 @@ export async function updateSession(request: NextRequest) {
     nextUrl.pathname.startsWith("/customers");
   const isPortalRoute = nextUrl.pathname.startsWith("/portal");
 
-  const role = user?.user_metadata?.role as string | undefined;
+  // Determine user role from metadata, or fallback to email pattern
+  let role = user?.user_metadata?.role as string | undefined;
+  if (!role && user?.email) {
+    if (user.email.toLowerCase().startsWith("admin@")) {
+      role = "admin";
+    } else if (user.email.toLowerCase().startsWith("staff@")) {
+      role = "staff";
+    } else if (user.email.toLowerCase().startsWith("customer@")) {
+      role = "customer";
+    }
+  }
 
-  // 1. If user is logged in and visits login/register, redirect them to their home page
+  // 1. If user is logged in and visits login/register, redirect them to their home view
   if (isAuthRoute) {
     if (user) {
       const url = request.nextUrl.clone();
